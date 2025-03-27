@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="niiprep",
-    version="0.1.0",
+    version="0.1.1",
     author="Jinghang Li",
     author_email="jinghang.li@pitt.edu",
     description="A CLI wrapper for TorchIO and ANTsPyX for NIfTI image processing",
