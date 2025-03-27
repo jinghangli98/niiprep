@@ -1,0 +1,39 @@
+# Ignore specific model files
+src/niiprep/brains-dice-vel-0.5-res-16-256f.h5
+src/niiprep/shapes-dice-vel-3-res-8-16-32-256f.h5
+src/niiprep/vxm_dense_brain_T1_3D_mse.h5
+
+# Common files to ignore
+*.log
+*.tmp
+.DS_Store
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
