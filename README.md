@@ -1,15 +1,19 @@
-# niiprep
+# NiiPrep
 
-A CLI wrapper for TorchIO and ANTsPyX for NIfTI image processing.
+A CLI wrapper for TorchIO and ANTsPyX for NIfTI image processing
+
+## Overview
+
+NiiPrep is a Python package that provides convenient command-line tools for common neuroimaging preprocessing tasks. It combines the power of TorchIO and ANTsPyX libraries to offer streamlined workflows for NIfTI image manipulation, registration, resampling, and visualization.
 
 ## Features
 
-- Resample NIfTI images to specified resolution
-- Register NIfTI images using ANTsPyX
-- Convert NIfTI images to MP4 videos
-- Round NIfTI pixel values
-- Denoise MP2RAGE images for improved T1w contrast
-- Register images using VoxelMorph (deep learning-based registration) with multiple pre-trained models included
+- **Image Resampling**: Change voxel spacing with multiple interpolation methods
+- **Image Registration**: Rigid, affine, and deformable registration using ANTsPyX
+- **Video Conversion**: Convert NIfTI files to MP4 videos for visualization
+- **Image Cropping/Padding**: Resize images to specified dimensions
+- **Value Rounding**: Round pixel values in NIfTI images
+- **MP2RAGE Denoising**: Robust combination processing for MP2RAGE images
 
 ## Installation
 
@@ -17,156 +21,188 @@ A CLI wrapper for TorchIO and ANTsPyX for NIfTI image processing.
 pip install niiprep
 ```
 
-With VoxelMorph support:
+### Requirements
 
-```bash
-pip install niiprep[voxelmorph]
-```
+- Python >= 3.7
+- TorchIO >= 0.18.0
+- ANTsPyX >= 0.3.0
+- NiBabel >= 3.0.0
+- NumPy >= 1.19.0
+- OpenCV (for video conversion)
+- Matplotlib (for MP2RAGE processing)
 
-For development:
+## Command-Line Tools
 
-```bash
-git clone https://github.com/yourusername/niiprep.git
-cd niiprep
-pip install -e .
-```
+After installation, the following commands are available:
 
-## Usage
+### 1. `resample` - Image Resampling
 
-### Resampling
+Resample NIfTI images to specified voxel spacing.
 
 ```bash
 resample -i input.nii.gz -o output.nii.gz -s 1.0 1.0 1.0 --interpolation linear
 ```
 
-### Registration
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save resampled NIfTI file
+- `-s, --spacing`: Target voxel spacing in mm (x y z), default: 1.0 1.0 1.0
+- `--interpolation`: Interpolation method (linear, nearest, bspline), default: linear
+
+### 2. `registernii` - Image Registration
+
+Register moving image to fixed image using ANTsPyX.
 
 ```bash
 registernii -f fixed.nii.gz -m moving.nii.gz -o registered.nii.gz -t syn --interpolation linear
 ```
 
-### Convert NIfTI to MP4
+**Parameters:**
+- `-f, --fixed`: Path to fixed/reference NIfTI file
+- `-m, --moving`: Path to moving NIfTI file
+- `-o, --output`: Path to save registered NIfTI file
+- `-t, --type`: Registration type (rigid, affine, syn), default: syn
+- `--interpolation`: Interpolation type, default: linear
+
+### 3. `nii2mp4` - Video Conversion
+
+Convert NIfTI files to MP4 videos for visualization.
 
 ```bash
 nii2mp4 -i input.nii.gz -o output.mp4 -d 2 --fps 10
 ```
 
-### Round NIfTI pixel values
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save MP4 file
+- `-d, --dimension`: Dimension to slice along (0: sagittal, 1: coronal, 2: axial), default: 2
+- `--fps`: Frames per second, default: 10
+- `--no-normalize`: Disable intensity normalization
+
+### 4. `crop` - Image Cropping/Padding
+
+Crop or pad NIfTI images to specified shape.
+
+```bash
+crop -i input.nii.gz -o output.nii.gz -s 256 256 256
+```
+
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save cropped/padded NIfTI file
+- `-s, --shape`: Target image shape, default: 256 256 256
+
+### 5. `roundnii` - Value Rounding
+
+Round pixel values in NIfTI images.
 
 ```bash
 roundnii -i input.nii.gz
 ```
 
-### Denoise MP2RAGE images
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file (will be overwritten)
+
+### 6. `denoiseMP2RAGE` - MP2RAGE Denoising
+
+Process MP2RAGE images with robust combination to reduce background noise.
 
 ```bash
-denoiseMP2RAGE --uni uni.nii.gz --inv1 inv1.nii.gz --inv2 inv2.nii.gz --output denoised.nii.gz --regularization 1.0
+denoiseMP2RAGE --uni uni.nii.gz --inv1 inv1.nii.gz --inv2 inv2.nii.gz -o denoised.nii.gz -r 1.0
 ```
 
-### VoxelMorph Registration
-
-Requires optional dependency: `pip install niiprep[voxelmorph]`
-
-```bash
-# Using the default pre-trained model (T1_BRAIN)
-vxmreg -m moving.nii.gz -f fixed.nii.gz -o moved.nii.gz
-
-# Using a specific predefined model
-vxmreg -m moving.nii.gz -f fixed.nii.gz -o moved.nii.gz --model-type BRAINS_DICE
-
-# List all available predefined models
-vxmreg --list-models
-
-# Or specify a custom model file path
-vxmreg -m moving.nii.gz -f fixed.nii.gz -o moved.nii.gz --model path/to/custom/model.pt --warp warp.nii.gz
-```
-
-#### Included VoxelMorph Models
-
-The package includes the following pre-trained VoxelMorph models:
-
-1. **T1_BRAIN**: Default model for T1-weighted brain MRI registration with MSE similarity metric. Small and fast.
-2. **BRAINS_DICE**: Specialized brain registration model with Dice similarity and velocity field regularization. Larger but more accurate for brain images.
-3. **SHAPES_DICE**: Generic shapes registration with Dice similarity and velocity field. Versatile for different types of images.
-
-> **Note:** The PyTorch version requires models in .pt format. The package will try to create placeholder models automatically. If this fails, you can create them manually with:
-> ```bash
-> python -m niiprep.convert_models
-> ```
-> Note that these are placeholder models without trained weights. The registration will still work, but may not be optimal.
+**Parameters:**
+- `--uni`: Path to UNI image
+- `--inv1`: Path to INV1 image
+- `--inv2`: Path to INV2 image
+- `-o, --output`: Output path for processed image
+- `-r, --regularization`: Noise regularization factor (optional, interactive mode if not specified)
 
 ## Python API
 
-You can also use niiprep as a Python package:
+You can also use NiiPrep functions directly in Python:
 
 ```python
 from niiprep import resample, register, nii_to_mp4
 
-# Resample a NIfTI image
+# Resample an image
 resample(
-    input_path="input.nii.gz",
-    output_path="resampled.nii.gz",
-    target_spacing=(1.0, 1.0, 1.0)
+    input_path='input.nii.gz',
+    output_path='output.nii.gz',
+    target_spacing=(1.0, 1.0, 1.0),
+    interpolation='linear'
 )
 
-# Register a moving image to a fixed image
+# Register images
 register(
-    fixed_path="fixed.nii.gz",
-    moving_path="moving.nii.gz",
-    output_path="registered.nii.gz",
-    reg_type="syn"
+    fixed_path='fixed.nii.gz',
+    moving_path='moving.nii.gz',
+    output_path='registered.nii.gz',
+    reg_type='syn'
 )
 
-# Convert a NIfTI image to MP4
+# Convert to video
 nii_to_mp4(
-    input_path="input.nii.gz",
-    output_path="output.mp4",
+    input_path='input.nii.gz',
+    output_path='output.mp4',
     dimension=2,
     fps=10
 )
-
-# Register using VoxelMorph (requires voxelmorph package)
-try:
-    from niiprep import register_voxelmorph, ModelType
-    
-    # Using the default pre-trained model (T1_BRAIN)
-    register_voxelmorph(
-        moving_path="moving.nii.gz",
-        fixed_path="fixed.nii.gz",
-        moved_path="moved.nii.gz"
-    )
-    
-    # Using a specific predefined model
-    register_voxelmorph(
-        moving_path="moving.nii.gz",
-        fixed_path="fixed.nii.gz",
-        moved_path="moved.nii.gz",
-        model_type=ModelType.BRAINS_DICE  # Or use the string 'BRAINS_DICE'
-    )
-    
-    # Or specify a custom model
-    register_voxelmorph(
-        moving_path="moving.nii.gz",
-        fixed_path="fixed.nii.gz",
-        moved_path="moved.nii.gz",
-        model_path="path/to/custom/model.pt",
-        warp_path="warp.nii.gz"  # Optional
-    )
-    
-    # List available models
-    from niiprep import list_available_models
-    available_models = list_available_models()
-    for name, desc in available_models.items():
-        print(f"{name}: {desc}")
-        
-except ImportError:
-    print("VoxelMorph not installed. Install with: pip install voxelmorph")
 ```
+
+## Examples
+
+### Basic Preprocessing Pipeline
+
+```bash
+# 1. Resample to 1mm isotropic
+resample -i raw.nii.gz -o resampled.nii.gz -s 1.0 1.0 1.0
+
+# 2. Crop to standard size
+crop -i resampled.nii.gz -o cropped.nii.gz -s 256 256 256
+
+# 3. Register to template
+registernii -f template.nii.gz -m cropped.nii.gz -o registered.nii.gz -t affine
+
+# 4. Create visualization video
+nii2mp4 -i registered.nii.gz -o preview.mp4 --fps 15
+```
+
+### MP2RAGE Processing
+
+```bash
+# Process MP2RAGE data with automatic noise estimation
+denoiseMP2RAGE --uni MP2RAGE_UNI.nii.gz \
+               --inv1 MP2RAGE_INV1.nii.gz \
+               --inv2 MP2RAGE_INV2.nii.gz \
+               -o MP2RAGE_denoised.nii.gz
+```
+
+## Development
+
+This package is built on top of:
+- **TorchIO**: For medical image processing and transformations
+- **ANTsPyX**: For advanced image registration
+- **NiBabel**: For NIfTI file I/O
+- **OpenCV**: For video generation
+
+## Author
+
+**Jinghang Li**  
+Email: jinghang.li@pitt.edu
 
 ## License
 
-MIT
+MIT License
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Changelog
+
+### Version 0.1.0
+- Initial release
+- Basic resampling, registration, and conversion tools
+- MP2RAGE denoising functionality
+- Command-line interface for all tools

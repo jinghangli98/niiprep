@@ -4,7 +4,7 @@ from .registration import register
 from .nii2mp4 import nii_to_mp4
 from .round import round_nifti
 from .denoise_mp2rage import robust_combination
-from .voxelmorph_reg import register_voxelmorph, list_available_models
+from .crop import crop
 
 def resample_cli():
     parser = argparse.ArgumentParser(description='Resample NIfTI image to specified resolution')
@@ -25,6 +25,23 @@ def resample_cli():
         output_path=args.output,
         target_spacing=tuple(args.spacing),
         interpolation=args.interpolation
+    )
+
+def crop_cli():
+    parser = argparse.ArgumentParser(description='Crop Or Pad NIfTI image to specified shape')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save resampled NIfTI file')
+    parser.add_argument('-s', '--shape', nargs=3, type=float, default=[256, 256, 256],
+                      help='Target image shape, default: 256 256 256')
+    
+    args = parser.parse_args()
+    
+    crop(
+        input_path=args.input,
+        output_path=args.output,
+        target_shape=tuple(args.shape),
     )
 
 def register_cli():
@@ -112,48 +129,3 @@ def denoise_mp2rage():
         'filenameOUT': args.output
     }
     _, _ = robust_combination(mp2rage_data, regularization=args.regularization,)
-
-def voxelmorph_register_cli():
-    # Get available models for help text
-    available_models = list_available_models()
-    models_help = "Available models:\n"
-    for name, desc in available_models.items():
-        models_help += f"  {name}: {desc}\n"
-    
-    parser = argparse.ArgumentParser(description='Register images using VoxelMorph deep learning framework')
-    parser.add_argument('-m', '--moving', required=True,
-                      help='Path to moving image (source) file')
-    parser.add_argument('-f', '--fixed', required=True,
-                      help='Path to fixed image (target) file')
-    parser.add_argument('-o', '--moved', required=True,
-                      help='Path to save the warped output image')
-    parser.add_argument('--model',
-                      help='Path to a custom VoxelMorph model file')
-    parser.add_argument('--model-type', choices=[name for name in available_models.keys()],
-                      help=f'Type of predefined model to use (default: T1_BRAIN)\n{models_help}')
-    parser.add_argument('--warp', help='Path to save the warp deformation field')
-    parser.add_argument('-g', '--gpu', help='GPU number(s) - if not supplied, CPU is used')
-    parser.add_argument('--multichannel', action='store_true',
-                      help='Specify that data has multiple channels')
-    parser.add_argument('--list-models', action='store_true',
-                      help='List available predefined models and exit')
-    
-    args = parser.parse_args()
-    
-    # If --list-models is specified, just list models and exit
-    if args.list_models:
-        print("Available predefined models:")
-        for name, desc in available_models.items():
-            print(f"  {name}: {desc}")
-        return
-    
-    register_voxelmorph(
-        moving_path=args.moving,
-        fixed_path=args.fixed,
-        moved_path=args.moved,
-        model_path=args.model,
-        model_type=args.model_type,
-        warp_path=args.warp,
-        gpu=args.gpu,
-        multichannel=args.multichannel
-    )
