@@ -3,6 +3,7 @@ import numpy as np
 import nibabel as nib
 import json
 from matplotlib import pyplot as plt
+from scipy import ndimage
 
 def robust_combination(mp2rage, regularization=None, figure=None):
     """
@@ -43,6 +44,24 @@ def robust_combination(mp2rage, regularization=None, figure=None):
     def roots_neg(a, b, c):
         return (-b - np.sqrt(b**2 - 4*a*c)) / (2*a)
     
+    def fill_nan_voxels(array, radius=1):
+        """Fill NaN voxels with mean of non-NaN neighbors."""
+        nan_mask = np.isnan(array)
+        
+        if not np.any(nan_mask):
+            return array
+        
+        print(f"Found {np.sum(nan_mask)} NaN voxels, filling with neighborhood mean...")
+        
+        def mean_of_valid(neighborhood):
+            valid = neighborhood[~np.isnan(neighborhood)]
+            return np.mean(valid) if len(valid) > 0 else 0
+        
+        filled = ndimage.generic_filter(array, mean_of_valid, size=2*radius+1)
+        array[nan_mask] = filled[nan_mask]
+        
+        return array
+    
     # Load data
     print(f"Loading images from: {os.path.dirname(mp2rage['filenameUNI'])}")
     uni_img = nib.load(mp2rage['filenameUNI'])
@@ -72,6 +91,9 @@ def robust_combination(mp2rage, regularization=None, figure=None):
     while final_choice.lower() != 'y':
         noise_level = multiplying_factor * np.mean(inv2_data[:, -10:, -10:])
         mp2rage_robust = mp2rage_robust_func(inv1_final, inv2_data, noise_level**2)
+        
+        # Fill NaN voxels with neighborhood mean
+        mp2rage_robust = fill_nan_voxels(mp2rage_robust, radius=1)
         
         if figure is not None:
             # Visualization code here (simplified)
