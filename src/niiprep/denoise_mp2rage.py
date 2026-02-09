@@ -36,13 +36,13 @@ def robust_combination(mp2rage, regularization=None, figure=None):
     
     # Define helper functions
     def mp2rage_robust_func(inv1, inv2, beta):
-        return (np.conj(inv1) * inv2 - beta) / (inv1**2 + inv2**2 + 2*beta)
+        return (np.conj(inv1) * inv2 - beta) / (inv1**2 + inv2**2 + 2*beta + 1e-5)
     
     def roots_pos(a, b, c):
-        return (-b + np.sqrt(b**2 - 4*a*c)) / (2*a)
+        return (-b + np.sqrt(b**2 - 4*a*c)) / (2*a + 1e-5)
     
     def roots_neg(a, b, c):
-        return (-b - np.sqrt(b**2 - 4*a*c)) / (2*a)
+        return (-b - np.sqrt(b**2 - 4*a*c)) / (2*a + 1e-5)
     
     def fill_nan_voxels(array, radius=1):
         """Fill NaN voxels with mean of non-NaN neighbors."""
