@@ -5,6 +5,7 @@ from .nii2mp4 import nii_to_mp4
 from .round import round_nifti
 from .denoise_mp2rage import robust_combination
 from .crop import crop
+from .autocrop import autocrop
 
 def resample_cli():
     parser = argparse.ArgumentParser(description='Resample NIfTI image to specified resolution')
@@ -129,3 +130,22 @@ def denoise_mp2rage():
         'filenameOUT': args.output
     }
     _, _ = robust_combination(mp2rage_data, regularization=args.regularization,)
+def autocrop_cli():
+    parser = argparse.ArgumentParser(description='Autocrop NIfTI image to remove empty space and pad to multiple of N')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to output NIfTI file')
+    parser.add_argument('-n', type=int, default=None,
+                      help='Integer multiple for output measurement (default: None, crop tightly)')
+    parser.add_argument('-s', '--shape', nargs=3, type=int, default=None,
+                      help='Target shape (x y z). If specified with -n, dimensions will be adjusted to closest smaller multiple of n.')
+    
+    args = parser.parse_args()
+    
+    autocrop(
+        input_path=args.input,
+        output_path=args.output,
+        n=args.n,
+        target_shape=tuple(args.shape) if args.shape else None
+    )

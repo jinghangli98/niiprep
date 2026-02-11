@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="niiprep",
-    version="0.1.4",
+    version="0.1.5",
     author="Jinghang Li",
     author_email="jinghang.li@pitt.edu",
     description="A CLI wrapper for TorchIO and ANTsPyX for NIfTI image processing",
@@ -35,7 +35,8 @@ setup(
             'nii2mp4=niiprep.cli:nii_to_mp4_cli',
             'roundnii=niiprep.cli:round_cli',
             'denoiseMP2RAGE=niiprep.cli:denoise_mp2rage',
-            'crop=niiprep.cli:crop_cli'
+            'crop=niiprep.cli:crop_cli',
+            'autocrop=niiprep.cli:autocrop_cli'
         ],
     },
 ) 

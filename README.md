@@ -11,7 +11,7 @@ NiiPrep is a Python package that provides convenient command-line tools for comm
 - **Image Resampling**: Change voxel spacing with multiple interpolation methods
 - **Image Registration**: Rigid, affine, and deformable registration using ANTsPyX
 - **Video Conversion**: Convert NIfTI files to MP4 videos for visualization
-- **Image Cropping/Padding**: Resize images to specified dimensions
+- **Image Cropping/Padding**: Resize images to specified dimensions or automatically remove empty space
 - **Value Rounding**: Round pixel values in NIfTI images
 - **MP2RAGE Denoising**: Robust combination processing for MP2RAGE images
 
@@ -118,6 +118,20 @@ denoiseMP2RAGE --uni uni.nii.gz --inv1 inv1.nii.gz --inv2 inv2.nii.gz -o denoise
 - `-o, --output`: Output path for processed image
 - `-r, --regularization`: Noise regularization factor (optional, interactive mode if not specified)
 
+### 7. `autocrop` - Automatic Image Cropping
+
+Automatically crop NIfTI images to remove empty space (based on gradient detection) and optionally pad to a specific shape or multiple.
+
+```bash
+autocrop -i input.nii.gz -o output.nii.gz -n 14
+```
+
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save cropped/padded NIfTI file
+- `-n`: Optional integer. If provided, output dimensions will be padded to be multiples of this value. Default is None (tight crop).
+- `-s, --shape`: Optional target shape (x y z). If provided, output will maximize this shape. If used with `-n`, dimensions are adjusted to the closest smaller multiple of `n`.
+
 ## Python API
 
 You can also use NiiPrep functions directly in Python:
@@ -158,8 +172,10 @@ nii_to_mp4(
 # 1. Resample to 1mm isotropic
 resample -i raw.nii.gz -o resampled.nii.gz -s 1.0 1.0 1.0
 
-# 2. Crop to standard size
+# 2. Crop to standard size (or use autocrop for automatic sizing)
 crop -i resampled.nii.gz -o cropped.nii.gz -s 256 256 256
+# OR
+autocrop -i resampled.nii.gz -o cropped.nii.gz -n 14
 
 # 3. Register to template
 registernii -f template.nii.gz -m cropped.nii.gz -o registered.nii.gz -t affine
