@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="niiprep",
-    version="0.1.5",
+    version="0.1.6",
     author="Jinghang Li",
     author_email="jinghang.li@pitt.edu",
     description="A CLI wrapper for TorchIO and ANTsPyX for NIfTI image processing",
