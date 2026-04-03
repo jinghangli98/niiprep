@@ -58,6 +58,8 @@ def register_cli():
                       help='Registration type (default: syn)')
     parser.add_argument('--interpolation', default='linear',
                       help='Interpolation type (default: linear)')
+    parser.add_argument('--norm', action='store_true',
+                      help='Min–max normalize intensities to 0–255 and round before saving')
     
     args = parser.parse_args()
     
@@ -66,7 +68,8 @@ def register_cli():
         moving_path=args.moving,
         output_path=args.output,
         reg_type=args.type,
-        interpolation=args.interpolation
+        interpolation=args.interpolation,
+        norm=args.norm,
     ) 
 
 def nii_to_mp4_cli():

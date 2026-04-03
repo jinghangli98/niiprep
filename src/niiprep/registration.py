@@ -1,3 +1,4 @@
+import numpy as np
 import ants
 from pathlib import Path
 from typing import Literal, Optional, Union, Tuple
@@ -7,7 +8,8 @@ def register(
     moving_path: str,
     output_path: str,
     reg_type: Literal['rigid', 'affine', 'syn'] = 'syn',
-    interpolation: str = 'linear'
+    interpolation: str = 'linear',
+    norm: bool = False,
 ) -> Tuple[ants.core.ants_image.ANTsImage, dict]:
     """
     Register a moving image to a fixed image using ANTsPyX.
@@ -18,6 +20,7 @@ def register(
         output_path (str): Path to save registered image
         reg_type (str): Registration type ('rigid', 'affine', or 'syn')
         interpolation (str): Interpolation type for resampling
+        norm (bool): If True, scale intensities to 0–255 (min–max) and round before saving
     
     Returns:
         tuple: (registered_image, transform_params)
@@ -46,6 +49,15 @@ def register(
     
     # Save registered image
     registered_image = registration['warpedmovout']
+    if norm:
+        arr = registered_image.numpy()
+        a_min, a_max = float(arr.min()), float(arr.max())
+        if a_max > a_min:
+            arr = (arr - a_min) / (a_max - a_min) * 255.0
+        else:
+            arr = np.zeros_like(arr, dtype=np.float64)
+        arr = np.round(arr).astype(np.float32)
+        registered_image = ants.new_image_like(registered_image, arr)
     ants.image_write(registered_image, output_path)
     
     return registered_image, registration
