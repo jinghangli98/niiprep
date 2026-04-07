@@ -1,5 +1,6 @@
 import argparse
 import ants
+import numpy as np
 from .resample import resample
 from .registration import register
 from .nii2mp4 import nii_to_mp4
@@ -140,11 +141,29 @@ def denoise_cli():
                       help='Path to input NIfTI file')
     parser.add_argument('-o', '--output', required=True,
                       help='Path to save denoised NIfTI file')
+    parser.add_argument('--norm', action='store_true',
+                      help='Min–max normalize intensities to 0–255 and round before saving')
 
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
     denoised = ants.denoise_image(image)
+
+    # Round the image
+    arr = denoised.numpy()
+    arr = np.round(arr)
+
+    # Normalize if requested
+    if args.norm:
+        a_min, a_max = float(arr.min()), float(arr.max())
+        if a_max > a_min:
+            arr = (arr - a_min) / (a_max - a_min) * 255.0
+        else:
+            arr = np.zeros_like(arr, dtype=np.float64)
+        arr = np.round(arr)
+
+    arr = arr.astype(np.float32)
+    denoised = ants.new_image_like(denoised, arr)
     ants.image_write(denoised, args.output)
 
 def biascorrect_cli():
@@ -153,11 +172,29 @@ def biascorrect_cli():
                       help='Path to input NIfTI file')
     parser.add_argument('-o', '--output', required=True,
                       help='Path to save bias-corrected NIfTI file')
+    parser.add_argument('--norm', action='store_true',
+                      help='Min–max normalize intensities to 0–255 and round before saving')
 
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
     corrected = ants.n4_bias_field_correction(image)
+
+    # Round the image
+    arr = corrected.numpy()
+    arr = np.round(arr)
+
+    # Normalize if requested
+    if args.norm:
+        a_min, a_max = float(arr.min()), float(arr.max())
+        if a_max > a_min:
+            arr = (arr - a_min) / (a_max - a_min) * 255.0
+        else:
+            arr = np.zeros_like(arr, dtype=np.float64)
+        arr = np.round(arr)
+
+    arr = arr.astype(np.float32)
+    corrected = ants.new_image_like(corrected, arr)
     ants.image_write(corrected, args.output)
 
 def autocrop_cli():

@@ -10,6 +10,8 @@ NiiPrep is a Python package that provides convenient command-line tools for comm
 
 - **Image Resampling**: Change voxel spacing with multiple interpolation methods
 - **Image Registration**: Rigid, affine, and deformable registration using ANTsPyX
+- **Image Denoising**: Non-local means denoising using ANTs
+- **Bias Field Correction**: N4 bias field correction using ANTs
 - **Video Conversion**: Convert NIfTI files to MP4 videos for visualization
 - **Image Cropping/Padding**: Resize images to specified dimensions or automatically remove empty space
 - **Value Rounding**: Round pixel values in NIfTI images
@@ -55,6 +57,7 @@ Register moving image to fixed image using ANTsPyX.
 
 ```bash
 registernii -f fixed.nii.gz -m moving.nii.gz -o registered.nii.gz -t syn --interpolation linear
+registernii -f fixed.nii.gz -m moving.nii.gz -o registered.nii.gz -t syn --norm
 ```
 
 **Parameters:**
@@ -63,6 +66,7 @@ registernii -f fixed.nii.gz -m moving.nii.gz -o registered.nii.gz -t syn --inter
 - `-o, --output`: Path to save registered NIfTI file
 - `-t, --type`: Registration type (rigid, affine, syn), default: syn
 - `--interpolation`: Interpolation type, default: linear
+- `--norm`: Min-max normalize intensities to 0-255 and round before saving (optional)
 
 ### 3. `nii2mp4` - Video Conversion
 
@@ -103,7 +107,35 @@ roundnii -i input.nii.gz
 **Parameters:**
 - `-i, --input`: Path to input NIfTI file (will be overwritten)
 
-### 6. `denoiseMP2RAGE` - MP2RAGE Denoising
+### 6. `denoise` - Image Denoising
+
+Denoise NIfTI images using ANTs denoising algorithm. Values are rounded before saving, and can optionally be normalized to 0-255 range.
+
+```bash
+denoise -i input.nii.gz -o denoised.nii.gz
+denoise -i input.nii.gz -o denoised.nii.gz --norm
+```
+
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save denoised NIfTI file
+- `--norm`: Min-max normalize intensities to 0-255 and round before saving (optional)
+
+### 7. `biascorrect` - N4 Bias Field Correction
+
+Apply N4 bias field correction using ANTs. Values are rounded before saving, and can optionally be normalized to 0-255 range.
+
+```bash
+biascorrect -i input.nii.gz -o corrected.nii.gz
+biascorrect -i input.nii.gz -o corrected.nii.gz --norm
+```
+
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save bias-corrected NIfTI file
+- `--norm`: Min-max normalize intensities to 0-255 and round before saving (optional)
+
+### 8. `denoiseMP2RAGE` - MP2RAGE Denoising
 
 Process MP2RAGE images with robust combination to reduce background noise.
 
@@ -118,7 +150,7 @@ denoiseMP2RAGE --uni uni.nii.gz --inv1 inv1.nii.gz --inv2 inv2.nii.gz -o denoise
 - `-o, --output`: Output path for processed image
 - `-r, --regularization`: Noise regularization factor (optional, interactive mode if not specified)
 
-### 7. `autocrop` - Automatic Image Cropping
+### 9. `autocrop` - Automatic Image Cropping
 
 Automatically crop NIfTI images to remove empty space (based on gradient detection) and optionally pad to a specific shape or multiple.
 
@@ -169,18 +201,24 @@ nii_to_mp4(
 ### Basic Preprocessing Pipeline
 
 ```bash
-# 1. Resample to 1mm isotropic
-resample -i raw.nii.gz -o resampled.nii.gz -s 1.0 1.0 1.0
+# 1. Denoise the raw image
+denoise -i raw.nii.gz -o denoised.nii.gz
 
-# 2. Crop to standard size (or use autocrop for automatic sizing)
+# 2. Apply bias field correction
+biascorrect -i denoised.nii.gz -o corrected.nii.gz
+
+# 3. Resample to 1mm isotropic
+resample -i corrected.nii.gz -o resampled.nii.gz -s 1.0 1.0 1.0
+
+# 4. Crop to standard size (or use autocrop for automatic sizing)
 crop -i resampled.nii.gz -o cropped.nii.gz -s 256 256 256
 # OR
 autocrop -i resampled.nii.gz -o cropped.nii.gz -n 14
 
-# 3. Register to template
-registernii -f template.nii.gz -m cropped.nii.gz -o registered.nii.gz -t affine
+# 5. Register to template with normalization
+registernii -f template.nii.gz -m cropped.nii.gz -o registered.nii.gz -t affine --norm
 
-# 4. Create visualization video
+# 6. Create visualization video
 nii2mp4 -i registered.nii.gz -o preview.mp4 --fps 15
 ```
 
