@@ -1,4 +1,5 @@
 import argparse
+import ants
 from .resample import resample
 from .registration import register
 from .nii2mp4 import nii_to_mp4
@@ -133,6 +134,32 @@ def denoise_mp2rage():
         'filenameOUT': args.output
     }
     _, _ = robust_combination(mp2rage_data, regularization=args.regularization,)
+def denoise_cli():
+    parser = argparse.ArgumentParser(description='Denoise a NIfTI image using ANTs')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save denoised NIfTI file')
+
+    args = parser.parse_args()
+
+    image = ants.image_read(args.input)
+    denoised = ants.denoise_image(image)
+    ants.image_write(denoised, args.output)
+
+def biascorrect_cli():
+    parser = argparse.ArgumentParser(description='N4 bias field correction using ANTs')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save bias-corrected NIfTI file')
+
+    args = parser.parse_args()
+
+    image = ants.image_read(args.input)
+    corrected = ants.n4_bias_field_correction(image)
+    ants.image_write(corrected, args.output)
+
 def autocrop_cli():
     parser = argparse.ArgumentParser(description='Autocrop NIfTI image to remove empty space and pad to multiple of N')
     parser.add_argument('-i', '--input', required=True,
