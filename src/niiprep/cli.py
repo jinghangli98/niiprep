@@ -8,6 +8,19 @@ from .round import round_nifti
 from .denoise_mp2rage import robust_combination
 from .crop import crop
 from .autocrop import autocrop
+from .mask import rotation_mask, otsu_mask
+
+
+def _compute_ants_mask(ants_image, use_rotation=True, n_angles=36, threshold=None):
+    """Compute a binary mask and return it as an ANTs image."""
+    vol = ants_image.numpy()
+    if use_rotation:
+        print(f"Computing rotation mask (n_angles={n_angles})...")
+        mask_arr = rotation_mask(vol, n_angles=n_angles, threshold=threshold)
+    else:
+        print("Computing Otsu mask...")
+        mask_arr = otsu_mask(vol)
+    return ants.new_image_like(ants_image, mask_arr.astype(np.float32))
 
 def resample_cli():
     parser = argparse.ArgumentParser(description='Resample NIfTI image to specified resolution')
@@ -143,11 +156,25 @@ def denoise_cli():
                       help='Path to save denoised NIfTI file')
     parser.add_argument('--norm', action='store_true',
                       help='Min–max normalize intensities to 0–255 and round before saving')
+    parser.add_argument('--mask', action='store_true',
+                      help='Compute and apply an object mask before denoising')
+    parser.add_argument('--no-rotation', action='store_true',
+                      help='Use fast Otsu mask instead of rotation-based mask (only with --mask)')
+    parser.add_argument('--n_angles', type=int, default=36,
+                      help='Number of rotation angles for mask (default: 36, only with --mask)')
+    parser.add_argument('--threshold', type=float, default=None,
+                      help='Intensity threshold for mask (default: Otsu, only with --mask)')
 
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
-    denoised = ants.denoise_image(image)
+
+    mask = None
+    if args.mask:
+        mask = _compute_ants_mask(image, use_rotation=not args.no_rotation,
+                                  n_angles=args.n_angles, threshold=args.threshold)
+
+    denoised = ants.denoise_image(image, mask=mask)
 
     # Round the image
     arr = denoised.numpy()
@@ -174,11 +201,25 @@ def biascorrect_cli():
                       help='Path to save bias-corrected NIfTI file')
     parser.add_argument('--norm', action='store_true',
                       help='Min–max normalize intensities to 0–255 and round before saving')
+    parser.add_argument('--mask', action='store_true',
+                      help='Compute and apply an object mask before bias correction')
+    parser.add_argument('--no-rotation', action='store_true',
+                      help='Use fast Otsu mask instead of rotation-based mask (only with --mask)')
+    parser.add_argument('--n_angles', type=int, default=36,
+                      help='Number of rotation angles for mask (default: 36, only with --mask)')
+    parser.add_argument('--threshold', type=float, default=None,
+                      help='Intensity threshold for mask (default: Otsu, only with --mask)')
 
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
-    corrected = ants.n4_bias_field_correction(image)
+
+    mask = None
+    if args.mask:
+        mask = _compute_ants_mask(image, use_rotation=not args.no_rotation,
+                                  n_angles=args.n_angles, threshold=args.threshold)
+
+    corrected = ants.n4_bias_field_correction(image, mask=mask)
 
     # Round the image
     arr = corrected.numpy()
