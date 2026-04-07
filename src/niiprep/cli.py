@@ -156,21 +156,22 @@ def denoise_cli():
                       help='Path to save denoised NIfTI file')
     parser.add_argument('--norm', action='store_true',
                       help='Min–max normalize intensities to 0–255 and round before saving')
-    parser.add_argument('--mask', action='store_true',
-                      help='Compute and apply an object mask before denoising')
+    parser.add_argument('--ants-mask', action='store_true',
+                      help='Use ANTs built-in mask instead of the default rotation-based mask')
     parser.add_argument('--no-rotation', action='store_true',
-                      help='Use fast Otsu mask instead of rotation-based mask (only with --mask)')
+                      help='Use fast Otsu mask instead of rotation-based mask')
     parser.add_argument('--n_angles', type=int, default=36,
-                      help='Number of rotation angles for mask (default: 36, only with --mask)')
+                      help='Number of rotation angles for mask (default: 36)')
     parser.add_argument('--threshold', type=float, default=None,
-                      help='Intensity threshold for mask (default: Otsu, only with --mask)')
+                      help='Intensity threshold for mask (default: Otsu)')
 
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
 
-    mask = None
-    if args.mask:
+    if args.ants_mask:
+        mask = None
+    else:
         mask = _compute_ants_mask(image, use_rotation=not args.no_rotation,
                                   n_angles=args.n_angles, threshold=args.threshold)
 
@@ -201,21 +202,22 @@ def biascorrect_cli():
                       help='Path to save bias-corrected NIfTI file')
     parser.add_argument('--norm', action='store_true',
                       help='Min–max normalize intensities to 0–255 and round before saving')
-    parser.add_argument('--mask', action='store_true',
-                      help='Compute and apply an object mask before bias correction')
+    parser.add_argument('--ants-mask', action='store_true',
+                      help='Use ANTs built-in mask instead of the default rotation-based mask')
     parser.add_argument('--no-rotation', action='store_true',
-                      help='Use fast Otsu mask instead of rotation-based mask (only with --mask)')
+                      help='Use fast Otsu mask instead of rotation-based mask')
     parser.add_argument('--n_angles', type=int, default=36,
-                      help='Number of rotation angles for mask (default: 36, only with --mask)')
+                      help='Number of rotation angles for mask (default: 36)')
     parser.add_argument('--threshold', type=float, default=None,
-                      help='Intensity threshold for mask (default: Otsu, only with --mask)')
+                      help='Intensity threshold for mask (default: Otsu)')
 
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
 
-    mask = None
-    if args.mask:
+    if args.ants_mask:
+        mask = None
+    else:
         mask = _compute_ants_mask(image, use_rotation=not args.no_rotation,
                                   n_angles=args.n_angles, threshold=args.threshold)
 
