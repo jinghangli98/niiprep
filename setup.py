@@ -26,6 +26,7 @@ setup(
         "torchio>=0.18.0",
         "antspyx>=0.3.0",
         "nibabel>=3.0.0",
+        "opencv-python",
         "numpy>=1.19.0",
     ],
     entry_points={
