@@ -9,6 +9,7 @@ from .denoise_mp2rage import robust_combination
 from .crop import crop
 from .autocrop import autocrop
 from .mask import rotation_mask, otsu_mask, main as mask_main
+from .bias_correct_spm import spm_bias_correct, DEFAULT_SPM_PATH
 
 
 def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
@@ -336,6 +337,36 @@ def mask_cli():
         edge_shrink=args.edge_shrink,
         edge_blur_sigma=args.edge_blur_sigma,
         grad_threshold=args.grad_threshold,
+    )
+
+
+def mbiascorrect_cli():
+    parser = argparse.ArgumentParser(description='SPM12 bias field correction for NIfTI images')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file (.nii or .nii.gz)')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save bias-corrected NIfTI file (.nii or .nii.gz)')
+    parser.add_argument('--spm-path', default=DEFAULT_SPM_PATH,
+                      help=f'Path to SPM12 installation (default: {DEFAULT_SPM_PATH})')
+    parser.add_argument('--window-size', type=int, default=60,
+                      help='Bias FWHM in mm (default: 60)')
+    parser.add_argument('--sphere-size', type=int, default=50,
+                      help='Sphere size for brain mask in mm (default: 50)')
+    parser.add_argument('--include-c3', action='store_true',
+                      help='Include CSF (c3) tissue class in segmentation')
+    parser.add_argument('--save-masks', action='store_true',
+                      help='Save SPM tissue segmentation masks (c1-c5) alongside output')
+
+    args = parser.parse_args()
+
+    spm_bias_correct(
+        input_path=args.input,
+        output_path=args.output,
+        spm_path=args.spm_path,
+        window_size=args.window_size,
+        sphere_size=args.sphere_size,
+        include_c3=args.include_c3,
+        save_masks=args.save_masks,
     )
 
 

@@ -10,7 +10,7 @@ setup(
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     package_data={
-        'niiprep': [''],
+        'niiprep': ['*.m'],
     },
     include_package_data=True,
     classifiers=[
@@ -40,7 +40,8 @@ setup(
             'autocrop=niiprep.cli:autocrop_cli',
             'denoise=niiprep.cli:denoise_cli',
             'biascorrect=niiprep.cli:biascorrect_cli',
-            'genmask=niiprep.cli:mask_cli'
+            'genmask=niiprep.cli:mask_cli',
+            'mbiascorrect=niiprep.cli:mbiascorrect_cli'
         ],
     },
 ) 
