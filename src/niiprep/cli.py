@@ -356,6 +356,8 @@ def mbiascorrect_cli():
                       help='Include CSF (c3) tissue class in segmentation')
     parser.add_argument('--save-masks', action='store_true',
                       help='Save SPM tissue segmentation masks (c1-c5) alongside output')
+    parser.add_argument('--round', action='store_true',
+                      help='Round output intensity values to nearest integer')
 
     args = parser.parse_args()
 
@@ -367,6 +369,7 @@ def mbiascorrect_cli():
         sphere_size=args.sphere_size,
         include_c3=args.include_c3,
         save_masks=args.save_masks,
+        round_output=args.round,
     )
 
 

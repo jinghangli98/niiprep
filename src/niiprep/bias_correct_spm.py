@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import nibabel as nib
+from .round import round_nifti
 
 DEFAULT_SPM_PATH = '/ihome/tibrahim/jil202/spm12'
 
@@ -19,6 +20,7 @@ def spm_bias_correct(
     sphere_size=50,
     include_c3=False,
     save_masks=False,
+    round_output=False,
 ):
     input_path = os.path.abspath(input_path)
     output_path = os.path.abspath(output_path)
@@ -57,6 +59,8 @@ def spm_bias_correct(
         corrected_img = nib.load(spm_output)
         nib.save(corrected_img, output_path)
         print(f"Bias-corrected image saved to: {output_path}")
+        if round_output:
+            round_nifti(output_path)
 
         if save_masks:
             out_dir = os.path.dirname(output_path)
