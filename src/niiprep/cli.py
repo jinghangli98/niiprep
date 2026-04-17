@@ -8,15 +8,22 @@ from .round import round_nifti
 from .denoise_mp2rage import robust_combination
 from .crop import crop
 from .autocrop import autocrop
-from .mask import rotation_mask, otsu_mask
+from .mask import rotation_mask, otsu_mask, main as mask_main
 
 
-def _compute_ants_mask(ants_image, use_rotation=True, n_angles=36, threshold=None):
+def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
+                       threshold_scale=1.0, closing_radius=0, fill_holes=True, blur_sigma=0.0,
+                       edge_shrink=False, edge_blur_sigma=1.0, grad_threshold=None):
     """Compute a binary mask and return it as an ANTs image."""
     vol = ants_image.numpy()
     if use_rotation:
-        print(f"Computing rotation mask (n_angles={n_angles})...")
-        mask_arr = rotation_mask(vol, n_angles=n_angles, threshold=threshold)
+        print(f"Computing rotation mask (rot_axes={rot_axes}, n_angles={n_angles})...")
+        mask_arr = rotation_mask(vol, n_angles=n_angles, threshold=threshold,
+                                 threshold_scale=threshold_scale,
+                                 closing_radius=closing_radius, rot_axes=rot_axes,
+                                 fill_holes=fill_holes, blur_sigma=blur_sigma,
+                                 edge_shrink=edge_shrink, edge_blur_sigma=edge_blur_sigma,
+                                 grad_threshold=grad_threshold)
     else:
         print("Computing Otsu mask...")
         mask_arr = otsu_mask(vol)
@@ -160,11 +167,25 @@ def denoise_cli():
                       help='Use ANTs built-in mask instead of the default rotation-based mask')
     parser.add_argument('--no-rotation', action='store_true',
                       help='Use fast Otsu mask instead of rotation-based mask')
+    parser.add_argument('--axes', type=str, default='x,y,z',
+                      help='Axes to rotate around (e.g. z, or xyz for all 3)')
     parser.add_argument('--n_angles', type=int, default=36,
                       help='Number of rotation angles for mask (default: 36)')
     parser.add_argument('--threshold', type=float, default=None,
                       help='Intensity threshold for mask (default: Otsu)')
-
+    parser.add_argument('--threshold_scale', type=float, default=0.2,
+                      help='Scale factor applied to the mask threshold (default: 1.0). '
+                           'Use < 1.0 (e.g. 0.5) for 7T data with low signal in the neck region.')
+    parser.add_argument('--closing_radius', type=int, default=0,
+                      help='Morphological closing radius after rotation mask (default: 0 = off). '
+                           'Bridges Z-axis signal dropout gaps at the bottom of the neck.')
+    parser.add_argument('--no-fill-holes', action='store_true',
+                      help='Disable filling holes and extracting largest connected component in final mask')
+    parser.add_argument('--blur_sigma', type=float, default=3.0,
+                      help='Gaussian blur sigma for smoothing the mask before saving (default: 0 = off)')
+    parser.add_argument('--edge-shrink', action='store_true', help='Shrink the mask inwards until hitting a strong gradient spike (true skin boundary).')
+    parser.add_argument('--edge-blur-sigma', type=float, default=1.0, help='Blur applied before gradient calculation for shrinking. Default: 1.0.')
+    parser.add_argument('--grad-threshold', type=float, default=0.1, help='Gradient threshold for shrink stop condition. Default is auto Otsu.')
     args = parser.parse_args()
 
     image = ants.image_read(args.input)
@@ -173,7 +194,15 @@ def denoise_cli():
         mask = None
     else:
         mask = _compute_ants_mask(image, use_rotation=not args.no_rotation,
-                                  n_angles=args.n_angles, threshold=args.threshold)
+                                  rot_axes=args.axes,
+                                  n_angles=args.n_angles, threshold=args.threshold,
+                                  threshold_scale=args.threshold_scale,
+                                  closing_radius=args.closing_radius,
+                                  fill_holes=not args.no_fill_holes,
+                                  blur_sigma=args.blur_sigma,
+                                  edge_shrink=args.edge_shrink,
+                                  edge_blur_sigma=args.edge_blur_sigma,
+                                  grad_threshold=args.grad_threshold)
 
     denoised = ants.denoise_image(image, mask=mask)
 
@@ -206,10 +235,25 @@ def biascorrect_cli():
                       help='Use ANTs built-in mask instead of the default rotation-based mask')
     parser.add_argument('--no-rotation', action='store_true',
                       help='Use fast Otsu mask instead of rotation-based mask')
+    parser.add_argument('--axes', type=str, default='x,y,z',
+                      help='Axes to rotate around (e.g. z, or xyz for all 3)')
     parser.add_argument('--n_angles', type=int, default=36,
                       help='Number of rotation angles for mask (default: 36)')
     parser.add_argument('--threshold', type=float, default=None,
                       help='Intensity threshold for mask (default: Otsu)')
+    parser.add_argument('--threshold_scale', type=float, default=0.2,
+                      help='Scale factor applied to the mask threshold (default: 1.0). '
+                           'Use < 1.0 (e.g. 0.5) for 7T data with low signal in the neck region.')
+    parser.add_argument('--closing_radius', type=int, default=0,
+                      help='Morphological closing radius after rotation mask (default: 0 = off). '
+                           'Bridges Z-axis signal dropout gaps at the bottom of the neck.')
+    parser.add_argument('--no-fill-holes', action='store_true',
+                      help='Disable filling holes and extracting largest connected component in final mask')
+    parser.add_argument('--blur_sigma', type=float, default=3.0,
+                      help='Gaussian blur sigma for smoothing the mask before saving (default: 0 = off)')
+    parser.add_argument('--edge-shrink', action='store_true', help='Shrink the mask inwards until hitting a strong gradient spike (true skin boundary).')
+    parser.add_argument('--edge-blur-sigma', type=float, default=1.0, help='Blur applied before gradient calculation for shrinking. Default: 1.0.')
+    parser.add_argument('--grad-threshold', type=float, default=0.1, help='Gradient threshold for shrink stop condition. Default is auto Otsu.')
 
     args = parser.parse_args()
 
@@ -219,7 +263,15 @@ def biascorrect_cli():
         mask = None
     else:
         mask = _compute_ants_mask(image, use_rotation=not args.no_rotation,
-                                  n_angles=args.n_angles, threshold=args.threshold)
+                                  rot_axes=args.axes,
+                                  n_angles=args.n_angles, threshold=args.threshold,
+                                  threshold_scale=args.threshold_scale,
+                                  closing_radius=args.closing_radius,
+                                  fill_holes=not args.no_fill_holes,
+                                  blur_sigma=args.blur_sigma,
+                                  edge_shrink=args.edge_shrink,
+                                  edge_blur_sigma=args.edge_blur_sigma,
+                                  grad_threshold=args.grad_threshold)
 
     corrected = ants.n4_bias_field_correction(image, mask=mask)
 
@@ -239,6 +291,53 @@ def biascorrect_cli():
     arr = arr.astype(np.float32)
     corrected = ants.new_image_like(corrected, arr)
     ants.image_write(corrected, args.output)
+
+def mask_cli():
+    parser = argparse.ArgumentParser(description='Generate a binary brain/object mask from a NIfTI image')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', default=None,
+                      help='Path to output mask NIfTI file (default: <input>_mask.nii)')
+    parser.add_argument('--no-rotation', action='store_true',
+                      help='Use fast Otsu mask instead of rotation-based mask')
+    parser.add_argument('--axes', type=str, default='x,y,z',
+                      help='Axes to rotate around (e.g. z, or xyz for all 3)')
+    parser.add_argument('--n_angles', type=int, default=36,
+                      help='Number of rotation angles (default: 36)')
+    parser.add_argument('--threshold', type=float, default=None,
+                      help='Intensity threshold (default: Otsu)')
+    parser.add_argument('--threshold_scale', type=float, default=0.2,
+                      help='Scale factor applied to the threshold (default: 1.0). '
+                           'Use < 1.0 (e.g. 0.5) for 7T data with low signal in the neck region.')
+    parser.add_argument('--closing_radius', type=int, default=0,
+                      help='Morphological closing radius after rotation mask (default: 0 = off). '
+                           'Bridges Z-axis signal dropout gaps at the bottom of the neck.')
+    parser.add_argument('--no-fill-holes', action='store_true',
+                      help='Disable filling holes and extracting largest connected component in final mask')
+    parser.add_argument('--blur_sigma', type=float, default=3.0,
+                      help='Gaussian blur sigma for smoothing the mask before saving (default: 0 = off)')
+    parser.add_argument('--edge-shrink', action='store_true', help='Shrink the mask inwards until hitting a strong gradient spike (true skin boundary).')
+    parser.add_argument('--edge-blur-sigma', type=float, default=1.0, help='Blur applied before gradient calculation for shrinking. Default: 1.0.')
+    parser.add_argument('--grad-threshold', type=float, default=None, help='Gradient threshold for shrink stop condition. Default is auto Otsu.')
+
+    args = parser.parse_args()
+    
+    mask_main(
+        input_path=args.input,
+        output_path=args.output,
+        use_rotation=not args.no_rotation,
+        rot_axes=args.axes,
+        n_angles=args.n_angles,
+        threshold=args.threshold,
+        threshold_scale=args.threshold_scale,
+        closing_radius=args.closing_radius,
+        fill_holes=not args.no_fill_holes,
+        blur_sigma=args.blur_sigma,
+        edge_shrink=args.edge_shrink,
+        edge_blur_sigma=args.edge_blur_sigma,
+        grad_threshold=args.grad_threshold,
+    )
+
 
 def autocrop_cli():
     parser = argparse.ArgumentParser(description='Autocrop NIfTI image to remove empty space and pad to multiple of N')
