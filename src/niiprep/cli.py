@@ -10,6 +10,7 @@ from .crop import crop
 from .autocrop import autocrop
 from .mask import rotation_mask, otsu_mask, main as mask_main
 from .bias_correct_spm import spm_bias_correct, DEFAULT_SPM_PATH
+from .patchify_nii import patchify_nii, unpatchify_nii
 
 
 def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
@@ -383,12 +384,65 @@ def autocrop_cli():
                       help='Integer multiple for output measurement (default: None, crop tightly)')
     parser.add_argument('-s', '--shape', nargs=3, type=int, default=None,
                       help='Target shape (x y z). If specified with -n, dimensions will be adjusted to closest smaller multiple of n.')
-    
+
     args = parser.parse_args()
-    
+
     autocrop(
         input_path=args.input,
         output_path=args.output,
         n=args.n,
         target_shape=tuple(args.shape) if args.shape else None
+    )
+
+
+def patchify_nii_cli():
+    parser = argparse.ArgumentParser(description='Split a 3D NIfTI image into patches')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Output directory for patches and metadata')
+    parser.add_argument('-p', '--patch-size', nargs=3, type=int, required=True,
+                      metavar=('PX', 'PY', 'PZ'),
+                      help='Patch size in voxels (x y z)')
+    parser.add_argument('-s', '--step', type=int, default=None,
+                      help='Step size between patches in voxels (default: min(patch_size), non-overlapping)')
+    parser.add_argument('--no-pad', action='store_true',
+                      help='Disable automatic zero-padding to compatible dimensions (raises error instead)')
+    parser.add_argument('--norm', action='store_true',
+                      help='Normalize image intensities to [0, 1] before patchifying')
+    parser.add_argument('--min-nonzero-frac', type=float, default=0.01,
+                      help='Skip patches with fewer non-zero voxels than this fraction (default: 0.01)')
+    parser.add_argument('--min-intensity-range', type=float, default=0.0,
+                      help='Skip patches whose max-min intensity is <= this value (default: 0.0, disabled)')
+    parser.add_argument('--foreground-threshold', type=float, default=None,
+                      help='Intensity threshold above which a voxel counts as foreground '
+                           '(default: auto Otsu on the full image)')
+
+    args = parser.parse_args()
+
+    patchify_nii(
+        input_path=args.input,
+        output_dir=args.output,
+        patch_size=tuple(args.patch_size),
+        step=args.step,
+        pad=not args.no_pad,
+        norm=args.norm,
+        min_nonzero_frac=args.min_nonzero_frac,
+        min_intensity_range=args.min_intensity_range,
+        foreground_threshold=args.foreground_threshold,
+    )
+
+
+def unpatchify_nii_cli():
+    parser = argparse.ArgumentParser(description='Reconstruct a 3D NIfTI image from patches')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Directory containing patches and patches_meta.json')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save reconstructed NIfTI file')
+
+    args = parser.parse_args()
+
+    unpatchify_nii(
+        input_dir=args.input,
+        output_path=args.output,
     )

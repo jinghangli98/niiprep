@@ -16,6 +16,7 @@ NiiPrep is a Python package that provides convenient command-line tools for comm
 - **Image Cropping/Padding**: Resize images to specified dimensions or automatically remove empty space
 - **Value Rounding**: Round pixel values in NIfTI images
 - **MP2RAGE Denoising**: Robust combination processing for MP2RAGE images
+- **3D Patch Parcellation**: Split NIfTI volumes into 3D patches and reconstruct, with automatic background filtering
 
 ## Installation
 
@@ -32,6 +33,7 @@ pip install niiprep
 - NumPy >= 1.19.0
 - OpenCV (for video conversion)
 - Matplotlib (for MP2RAGE processing)
+- patchify >= 0.1.0 (for patch parcellation)
 - MATLAB + SPM12 (for `mbiascorrect` only)
 
 ## Command-Line Tools
@@ -188,12 +190,55 @@ autocrop -i input.nii.gz -o output.nii.gz -n 14
 - `-n`: Optional integer. If provided, output dimensions will be padded to be multiples of this value. Default is None (tight crop).
 - `-s, --shape`: Optional target shape (x y z). If provided, output will maximize this shape. If used with `-n`, dimensions are adjusted to the closest smaller multiple of `n`.
 
+### 11. `patchifynii` - 3D Patch Parcellation
+
+Split a 3D NIfTI image into overlapping or non-overlapping patches. Each patch is saved as an individual `.nii.gz` file with a spatially correct affine, alongside a `patches_meta.json` used for reconstruction. Background and noise patches are automatically skipped using Otsu's threshold.
+
+```bash
+# Non-overlapping 32³ patches, auto background filtering
+patchifynii -i input.nii.gz -o ./patches -p 32 32 32 --norm
+
+# Overlapping patches (step < patch size)
+patchifynii -i input.nii.gz -o ./patches -p 64 64 64 -s 32 --norm
+
+# Stricter foreground filter (keep only patches with >20% foreground voxels)
+patchifynii -i input.nii.gz -o ./patches -p 32 32 32 --norm --min-nonzero-frac 0.2
+```
+
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Output directory for patches and metadata
+- `-p, --patch-size`: Patch size in voxels (x y z)
+- `-s, --step`: Step size between patches (default: `min(patch_size)`, non-overlapping)
+- `--norm`: Normalize image intensities to [0, 1] before patchifying
+- `--min-nonzero-frac`: Skip patches where fewer than this fraction of voxels are foreground (default: 0.01)
+- `--min-intensity-range`: Skip patches whose max−min intensity ≤ this value (default: 0.0, disabled)
+- `--foreground-threshold`: Intensity above which a voxel counts as foreground (default: auto Otsu on the full image)
+- `--no-pad`: Raise an error instead of zero-padding when image dimensions are incompatible with patch/step size
+
+**Notes:**
+- Images are automatically zero-padded so dimensions satisfy `(dim − patch_size) % step == 0`. The original shape is stored in metadata and cropped back on reconstruction.
+- The foreground threshold defaults to Otsu's threshold computed on the full image, so no manual tuning is needed.
+
+### 12. `unpatchifynii` - Patch Reconstruction
+
+Reconstruct a 3D NIfTI image from patches created by `patchifynii`. Skipped (background) patches are filled with zeros.
+
+```bash
+unpatchifynii -i ./patches -o reconstructed.nii.gz
+```
+
+**Parameters:**
+- `-i, --input`: Directory containing patches and `patches_meta.json`
+- `-o, --output`: Path to save reconstructed NIfTI file
+
 ## Python API
 
 You can also use NiiPrep functions directly in Python:
 
 ```python
 from niiprep import resample, register, nii_to_mp4
+from niiprep.patchify_nii import patchify_nii, unpatchify_nii
 
 # Resample an image
 resample(
@@ -217,6 +262,22 @@ nii_to_mp4(
     output_path='output.mp4',
     dimension=2,
     fps=10
+)
+
+# Split into 3D patches (auto background filtering, normalize to [0,1])
+patchify_nii(
+    input_path='input.nii.gz',
+    output_dir='./patches',
+    patch_size=(64, 64, 64),
+    step=32,          # overlapping; omit for non-overlapping
+    norm=True,
+    min_nonzero_frac=0.1,
+)
+
+# Reconstruct from patches
+unpatchify_nii(
+    input_dir='./patches',
+    output_path='reconstructed.nii.gz',
 )
 ```
 
@@ -244,6 +305,22 @@ registernii -f template.nii.gz -m cropped.nii.gz -o registered.nii.gz -t affine 
 
 # 6. Create visualization video
 nii2mp4 -i registered.nii.gz -o preview.mp4 --fps 15
+```
+
+### Patch-Based Processing Pipeline
+
+```bash
+# 1. Preprocess
+denoise -i raw.nii.gz -o denoised.nii.gz
+biascorrect -i denoised.nii.gz -o corrected.nii.gz
+
+# 2. Split into 64³ patches, normalize, skip background
+patchifynii -i corrected.nii.gz -o ./patches -p 64 64 64 --norm
+
+# 3. ... process patches (e.g. feed into a model) ...
+
+# 4. Reconstruct
+unpatchifynii -i ./patches -o reconstructed.nii.gz
 ```
 
 ### MP2RAGE Processing
@@ -278,6 +355,11 @@ MIT License
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
+
+### Version 0.2.0
+- Added `patchifynii`: split 3D NIfTI volumes into patches with automatic zero-padding, normalization, and Otsu-based background filtering
+- Added `unpatchifynii`: reconstruct volumes from patches with automatic crop-back to original shape
+- Added `patchify>=0.1.0` dependency
 
 ### Version 0.1.0
 - Initial release
