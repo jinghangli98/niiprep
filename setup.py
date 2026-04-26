@@ -30,7 +30,7 @@ setup(
         "antspyx>=0.3.0",
         "nibabel>=3.0.0",
         "opencv-python",
-        "numpy>=1.19.0",
+        "numpy",
         "patchify>=0.1.0",
     ],
     entry_points={
