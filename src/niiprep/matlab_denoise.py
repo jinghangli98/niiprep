@@ -34,13 +34,23 @@ def mdenoise(input_path: str, output_path: str) -> None:
             f"img = niftiread({_matlab_string(matlab_input)}); "
             f"info = niftiinfo({_matlab_string(matlab_input)}); "
             "[d1, ~] = new_denoising_func_matlab_matrix(img, class(img)); "
-            f"niftwrite(d1, {_matlab_string(matlab_output)}, info); "
+            f"niftiwrite(d1, {_matlab_string(matlab_output)}, info); "
             "exit"
         )
+
+        env = os.environ.copy()
+        ldpath = env.get("LD_LIBRARY_PATH", "")
+        # Strip any user-local GCC lib paths that ship an older libstdc++ than
+        # MATLAB R2025a requires (needs GLIBCXX_3.4.29+, CXXABI_1.3.13+).
+        filtered = ":".join(
+            p for p in ldpath.split(":") if "opt/gcc" not in p and p
+        )
+        env["LD_LIBRARY_PATH"] = filtered
 
         subprocess.run(
             ["matlab", "-nodisplay", "-nosplash", "-r", matlab_cmd],
             check=True,
+            env=env,
         )
 
         if not os.path.exists(matlab_output):
