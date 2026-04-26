@@ -11,6 +11,7 @@ from .autocrop import autocrop
 from .mask import rotation_mask, otsu_mask, main as mask_main
 from .bias_correct_spm import spm_bias_correct, DEFAULT_SPM_PATH
 from .patchify_nii import patchify_nii, unpatchify_nii
+from .matlab_denoise import mdenoise
 
 
 def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
@@ -224,6 +225,18 @@ def denoise_cli():
     arr = arr.astype(np.float32)
     denoised = ants.new_image_like(denoised, arr)
     ants.image_write(denoised, args.output)
+
+
+def mdenoise_cli():
+    parser = argparse.ArgumentParser(description='Denoise a NIfTI image using the MATLAB denoising routine')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save denoised NIfTI file')
+
+    args = parser.parse_args()
+
+    mdenoise(args.input, args.output)
 
 def biascorrect_cli():
     parser = argparse.ArgumentParser(description='N4 bias field correction using ANTs')
