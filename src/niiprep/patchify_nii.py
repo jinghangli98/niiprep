@@ -34,6 +34,7 @@ def patchify_nii(
     step: int = None,
     pad: bool = True,
     norm: bool = False,
+    skip: bool = False,
     min_nonzero_frac: float = 0.01,
     min_intensity_range: float = 0.0,
     foreground_threshold: float = None,
@@ -48,10 +49,11 @@ def patchify_nii(
     step : stride between patches (default: min(patch_size) for non-overlapping)
     pad : zero-pad to compatible dimensions if needed (default True)
     norm : normalize image intensities to [0, 1] before patchifying (default False)
-    min_nonzero_frac : skip patches where fewer than this fraction of voxels are foreground (default 0.01)
-    min_intensity_range : skip patches where max-min < this (default 0.0, disabled)
-    foreground_threshold : intensity above which a voxel counts as foreground; default None
-                           auto-computes Otsu's threshold on the full image
+    skip : skip patches that do not pass the foreground filter (default False, all patches saved)
+    min_nonzero_frac : (skip=True) min fraction of foreground voxels to keep a patch (default 0.01)
+    min_intensity_range : (skip=True) min max-min intensity to keep a patch (default 0.0, disabled)
+    foreground_threshold : (skip=True) intensity above which a voxel counts as foreground;
+                           default None auto-computes Otsu's threshold on the full image
 
     Returns
     -------
@@ -71,7 +73,7 @@ def patchify_nii(
             data = np.zeros_like(data)
         print(f"Normalized image intensities from [{v_min:.4g}, {v_max:.4g}] to [0, 1]")
 
-    if foreground_threshold is None:
+    if skip and foreground_threshold is None:
         foreground_threshold = float(_otsu_threshold(data))
         print(f"Auto foreground threshold (Otsu): {foreground_threshold:.4g}")
 
@@ -107,13 +109,13 @@ def patchify_nii(
             for k in range(grid_shape[2]):
                 patch_data = patches[i, j, k]
 
-                nonzero_frac = float(np.sum(patch_data > foreground_threshold)) / patch_data.size
-                intensity_range = float(patch_data.max() - patch_data.min())
-
-                if nonzero_frac < min_nonzero_frac or intensity_range <= min_intensity_range:
-                    skipped_indices.append([i, j, k])
-                    skipped += 1
-                    continue
+                if skip:
+                    nonzero_frac = float(np.sum(patch_data > foreground_threshold)) / patch_data.size
+                    intensity_range = float(patch_data.max() - patch_data.min())
+                    if nonzero_frac < min_nonzero_frac or intensity_range <= min_intensity_range:
+                        skipped_indices.append([i, j, k])
+                        skipped += 1
+                        continue
 
                 offset = np.array([i * step, j * step, k * step, 1.0])
                 patch_affine = affine.copy()

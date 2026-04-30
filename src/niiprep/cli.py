@@ -423,13 +423,14 @@ def patchify_nii_cli():
                       help='Disable automatic zero-padding to compatible dimensions (raises error instead)')
     parser.add_argument('--norm', action='store_true',
                       help='Normalize image intensities to [0, 1] before patchifying')
+    parser.add_argument('--skip', action='store_true',
+                      help='Skip background/noise patches that do not pass the foreground filter')
     parser.add_argument('--min-nonzero-frac', type=float, default=0.01,
-                      help='Skip patches with fewer non-zero voxels than this fraction (default: 0.01)')
+                      help='(--skip) Min fraction of foreground voxels to keep a patch (default: 0.01)')
     parser.add_argument('--min-intensity-range', type=float, default=0.0,
-                      help='Skip patches whose max-min intensity is <= this value (default: 0.0, disabled)')
+                      help='(--skip) Min max-min intensity to keep a patch (default: 0.0, disabled)')
     parser.add_argument('--foreground-threshold', type=float, default=None,
-                      help='Intensity threshold above which a voxel counts as foreground '
-                           '(default: auto Otsu on the full image)')
+                      help='(--skip) Intensity threshold for foreground voxels (default: auto Otsu)')
 
     args = parser.parse_args()
 
@@ -440,6 +441,7 @@ def patchify_nii_cli():
         step=args.step,
         pad=not args.no_pad,
         norm=args.norm,
+        skip=args.skip,
         min_nonzero_frac=args.min_nonzero_frac,
         min_intensity_range=args.min_intensity_range,
         foreground_threshold=args.foreground_threshold,
