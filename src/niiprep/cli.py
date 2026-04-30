@@ -1,13 +1,16 @@
 import argparse
 import ants
+import json
 import numpy as np
+import tempfile
+import os
 from .resample import resample
 from .registration import register
 from .nii2mp4 import nii_to_mp4
 from .round import round_nifti
 from .denoise_mp2rage import robust_combination
 from .crop import crop
-from .autocrop import autocrop
+from .autocrop import autocrop, apply_crop_bounds
 from .mask import rotation_mask, otsu_mask, main as mask_main
 from .bias_correct_spm import spm_bias_correct, DEFAULT_SPM_PATH
 from .patchify_nii import patchify_nii, unpatchify_nii
@@ -431,21 +434,64 @@ def patchify_nii_cli():
                       help='(--skip) Min max-min intensity to keep a patch (default: 0.0, disabled)')
     parser.add_argument('--foreground-threshold', type=float, default=None,
                       help='(--skip) Intensity threshold for foreground voxels (default: auto Otsu)')
+    parser.add_argument('--autocrop', action='store_true',
+                      help='Autocrop the image to remove empty space before patchifying')
+    parser.add_argument('--align-to', type=str, default=None, metavar='DIR',
+                      help='Reuse crop bounds and skip indices from a previous patchify output '
+                           'directory so patches align exactly with that run')
 
     args = parser.parse_args()
 
-    patchify_nii(
-        input_path=args.input,
-        output_dir=args.output,
-        patch_size=tuple(args.patch_size),
-        step=args.step,
-        pad=not args.no_pad,
-        norm=args.norm,
-        skip=args.skip,
-        min_nonzero_frac=args.min_nonzero_frac,
-        min_intensity_range=args.min_intensity_range,
-        foreground_threshold=args.foreground_threshold,
-    )
+    if args.autocrop and args.align_to:
+        raise SystemExit("error: --autocrop and --align-to are mutually exclusive")
+
+    input_path = args.input
+    tmp_file = None
+    crop_bounds = None
+    forced_skip_indices = None
+
+    if args.autocrop:
+        tmp_file = tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False)
+        tmp_file.close()
+        print(f"Autocropping {input_path} ...")
+        crop_bounds = autocrop(input_path=input_path, output_path=tmp_file.name)
+        input_path = tmp_file.name
+
+    elif args.align_to:
+        meta_path = os.path.join(args.align_to, 'patches_meta.json')
+        if not os.path.exists(meta_path):
+            raise SystemExit(f"error: patches_meta.json not found in {args.align_to}")
+        with open(meta_path) as f:
+            ref_meta = json.load(f)
+        crop_bounds = ref_meta.get('crop_bounds')
+        forced_skip_indices = ref_meta.get('skipped_indices', [])
+        if crop_bounds is not None:
+            tmp_file = tempfile.NamedTemporaryFile(suffix='.nii.gz', delete=False)
+            tmp_file.close()
+            print(f"Applying crop bounds from {args.align_to} ...")
+            apply_crop_bounds(input_path=input_path, output_path=tmp_file.name, bounds=crop_bounds)
+            input_path = tmp_file.name
+        if forced_skip_indices:
+            print(f"Inheriting {len(forced_skip_indices)} skipped patch indices from {args.align_to}")
+
+    try:
+        patchify_nii(
+            input_path=input_path,
+            output_dir=args.output,
+            patch_size=tuple(args.patch_size),
+            step=args.step,
+            pad=not args.no_pad,
+            norm=args.norm,
+            skip=args.skip,
+            min_nonzero_frac=args.min_nonzero_frac,
+            min_intensity_range=args.min_intensity_range,
+            foreground_threshold=args.foreground_threshold,
+            forced_skip_indices=forced_skip_indices,
+            crop_bounds=crop_bounds,
+        )
+    finally:
+        if tmp_file is not None and os.path.exists(tmp_file.name):
+            os.unlink(tmp_file.name)
 
 
 def unpatchify_nii_cli():

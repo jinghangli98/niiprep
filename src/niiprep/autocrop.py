@@ -3,6 +3,34 @@ import numpy as np
 import math
 
 
+def apply_crop_bounds(input_path: str, output_path: str, bounds: dict):
+    """Apply pre-computed autocrop bounds to an image without recomputing the bounding box."""
+    img = nib.load(input_path)
+    data = np.array(img.dataobj, dtype=np.float32)
+
+    ox, oy, oz = bounds["origin"]
+    tw, th, td = bounds["shape"]
+
+    new_data = np.zeros((tw, th, td), dtype=data.dtype)
+
+    src_x_s = max(0, ox);          src_x_e = min(data.shape[0], ox + tw)
+    dst_x_s = max(0, -ox);         dst_x_e = dst_x_s + (src_x_e - src_x_s)
+
+    src_y_s = max(0, oy);          src_y_e = min(data.shape[1], oy + th)
+    dst_y_s = max(0, -oy);         dst_y_e = dst_y_s + (src_y_e - src_y_s)
+
+    src_z_s = max(0, oz);          src_z_e = min(data.shape[2], oz + td)
+    dst_z_s = max(0, -oz);         dst_z_e = dst_z_s + (src_z_e - src_z_s)
+
+    new_data[dst_x_s:dst_x_e, dst_y_s:dst_y_e, dst_z_s:dst_z_e] = \
+        data[src_x_s:src_x_e, src_y_s:src_y_e, src_z_s:src_z_e]
+
+    new_affine = img.affine.copy()
+    new_affine[:3, 3] += new_affine[:3, :3].dot(np.array([ox, oy, oz], dtype=float))
+
+    nib.save(nib.Nifti1Image(new_data, new_affine, img.header), output_path)
+
+
 def _otsu_threshold(data):
     """Compute Otsu's optimal threshold using only numpy."""
     hist, bin_edges = np.histogram(data.ravel(), bins=256)
@@ -169,3 +197,8 @@ def autocrop(input_path: str, output_path: str, n: int = None, target_shape: tup
 
     new_img = nib.Nifti1Image(new_data, new_affine, img.header)
     nib.save(new_img, output_path)
+
+    return {
+        "origin": [int(min_x - offset_x), int(min_y - offset_y), int(min_z - offset_z)],
+        "shape": [int(target_width), int(target_height), int(target_depth)],
+    }

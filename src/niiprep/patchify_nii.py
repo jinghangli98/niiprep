@@ -38,6 +38,8 @@ def patchify_nii(
     min_nonzero_frac: float = 0.01,
     min_intensity_range: float = 0.0,
     foreground_threshold: float = None,
+    forced_skip_indices: list = None,
+    crop_bounds: dict = None,
 ):
     """Split a 3D NIfTI image into patches saved as individual .nii.gz files.
 
@@ -103,11 +105,17 @@ def patchify_nii(
 
     saved, skipped = 0, 0
     skipped_indices = []
+    forced_skip_set = {tuple(idx) for idx in (forced_skip_indices or [])}
 
     for i in range(grid_shape[0]):
         for j in range(grid_shape[1]):
             for k in range(grid_shape[2]):
                 patch_data = patches[i, j, k]
+
+                if (i, j, k) in forced_skip_set:
+                    skipped_indices.append([i, j, k])
+                    skipped += 1
+                    continue
 
                 if skip:
                     nonzero_frac = float(np.sum(patch_data > foreground_threshold)) / patch_data.size
@@ -134,6 +142,7 @@ def patchify_nii(
         "grid_shape": list(grid_shape),
         "affine": affine.tolist(),
         "skipped_indices": skipped_indices,
+        "crop_bounds": crop_bounds,
     }
     with open(os.path.join(output_dir, "patches_meta.json"), "w") as f:
         json.dump(meta, f, indent=2)
