@@ -4,6 +4,7 @@ import sys
 import json
 import numpy as np
 import nibabel as nib
+from numpy.lib.stride_tricks import sliding_window_view
 from .autocrop import _otsu_threshold
 
 # Remove any sys.path entries that shadow patchify with a bare directory
@@ -16,7 +17,7 @@ sys.path = [
 if "patchify" in sys.modules and sys.modules["patchify"].__file__ is None:
     del sys.modules["patchify"]
 
-from patchify import patchify, unpatchify
+from patchify import unpatchify
 
 
 def _compat_dim(dim: int, patch_size: int, step: int) -> int:
@@ -31,7 +32,7 @@ def patchify_nii(
     input_path: str,
     output_dir: str,
     patch_size: tuple,
-    step: int = None,
+    step=None,
     pad: bool = True,
     norm: bool = False,
     skip: bool = False,
@@ -48,7 +49,8 @@ def patchify_nii(
     input_path : path to input NIfTI file
     output_dir : directory where patches and metadata are saved
     patch_size : (px, py, pz) patch dimensions in voxels
-    step : stride between patches (default: min(patch_size) for non-overlapping)
+    step : stride between patches. int (same on all axes) or sequence of 3 ints
+           (sx, sy, sz). Default: min(patch_size) on all axes.
     pad : zero-pad to compatible dimensions if needed (default True)
     norm : normalize image intensities to [0, 1] before patchifying (default False)
     skip : skip patches that do not pass the foreground filter (default False, all patches saved)
@@ -80,10 +82,16 @@ def patchify_nii(
         print(f"Auto foreground threshold (Otsu): {foreground_threshold:.4g}")
 
     if step is None:
-        step = min(patch_size)
+        step = (min(patch_size),) * 3
+    elif isinstance(step, (int, np.integer)):
+        step = (int(step),) * 3
+    else:
+        step = tuple(int(s) for s in step)
+        if len(step) != 3:
+            raise ValueError(f"step must be int or sequence of 3 ints, got {len(step)} values")
 
     original_shape = list(data.shape)
-    padded_shape = [_compat_dim(d, ps, step) for d, ps in zip(data.shape, patch_size)]
+    padded_shape = [_compat_dim(d, ps, s) for d, ps, s in zip(data.shape, patch_size, step)]
 
     if padded_shape != original_shape:
         if not pad:
@@ -96,7 +104,8 @@ def patchify_nii(
         data = np.pad(data, pad_widths, mode="constant", constant_values=0)
         print(f"Padded image from {original_shape} to {padded_shape} for compatibility")
 
-    patches = patchify(data, tuple(patch_size), step=step)
+    windows = sliding_window_view(data, tuple(patch_size))
+    patches = windows[::step[0], ::step[1], ::step[2]]
     # patches.shape: (n0, n1, n2, p0, p1, p2)
     grid_shape = patches.shape[:3]
     affine = img.affine
@@ -125,7 +134,7 @@ def patchify_nii(
                         skipped += 1
                         continue
 
-                offset = np.array([i * step, j * step, k * step, 1.0])
+                offset = np.array([i * step[0], j * step[1], k * step[2], 1.0])
                 patch_affine = affine.copy()
                 patch_affine[:3, 3] = (affine @ offset)[:3]
 
@@ -138,7 +147,7 @@ def patchify_nii(
         "original_shape": original_shape,
         "padded_shape": padded_shape,
         "patch_size": list(patch_size),
-        "step": step,
+        "step": list(step),
         "grid_shape": list(grid_shape),
         "affine": affine.tolist(),
         "skipped_indices": skipped_indices,

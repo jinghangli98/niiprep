@@ -420,8 +420,10 @@ def patchify_nii_cli():
     parser.add_argument('-p', '--patch-size', nargs=3, type=int, required=True,
                       metavar=('PX', 'PY', 'PZ'),
                       help='Patch size in voxels (x y z)')
-    parser.add_argument('-s', '--step', type=int, default=None,
-                      help='Step size between patches in voxels (default: min(patch_size), non-overlapping)')
+    parser.add_argument('-s', '--step', type=int, nargs='+', default=None, metavar='S',
+                      help='Step size between patches in voxels. Pass one int for uniform step '
+                           'on all axes, or three ints (sx sy sz) for per-axis step. '
+                           '(default: min(patch_size), non-overlapping on all axes)')
     parser.add_argument('--no-pad', action='store_true',
                       help='Disable automatic zero-padding to compatible dimensions (raises error instead)')
     parser.add_argument('--norm', action='store_true',
@@ -444,6 +446,12 @@ def patchify_nii_cli():
 
     if args.autocrop and args.align_to:
         raise SystemExit("error: --autocrop and --align-to are mutually exclusive")
+
+    if args.step is not None:
+        if len(args.step) == 1:
+            args.step = args.step[0]
+        elif len(args.step) != 3:
+            raise SystemExit("error: --step takes 1 value (uniform) or 3 values (sx sy sz)")
 
     input_path = args.input
     tmp_file = None
