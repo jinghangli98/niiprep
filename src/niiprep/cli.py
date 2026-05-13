@@ -4,7 +4,7 @@ import json
 import numpy as np
 import tempfile
 import os
-from .resample import resample
+from .resample import resample, resample_seg
 from .registration import register
 from .nii2mp4 import nii_to_mp4
 from .round import round_nifti
@@ -43,18 +43,38 @@ def resample_cli():
                       help='Path to save resampled NIfTI file')
     parser.add_argument('-s', '--spacing', nargs=3, type=float, default=[1.0, 1.0, 1.0],
                       help='Target voxel spacing in mm (x y z), default: 1.0 1.0 1.0')
-    parser.add_argument('--interpolation', choices=['linear', 'nearest', 'bspline'], 
+    parser.add_argument('--interpolation', choices=['linear', 'nearest', 'bspline'],
                       default='linear',
-                      help='Interpolation method (default: linear)')
-    
+                      help='Interpolation method for scalar images (default: linear). '
+                           'Ignored when --seg is set.')
+    parser.add_argument('--seg', action='store_true',
+                      help='Treat input as a discrete-label segmentation. Uses per-label '
+                           'one-hot + smoothing + argmax to produce anti-aliased boundaries '
+                           'without inventing fractional labels.')
+    parser.add_argument('--sigma', type=float, default=0.7,
+                      help='Gaussian sigma in source voxels for --seg smoothing '
+                           '(default: 0.7; 0 disables, larger = smoother).')
+    parser.add_argument('--order', type=int, default=1, choices=[0, 1, 2, 3],
+                      help='Spline order for --seg interpolation '
+                           '(1=linear, 3=cubic; default: 1).')
+
     args = parser.parse_args()
-    
-    resample(
-        input_path=args.input,
-        output_path=args.output,
-        target_spacing=tuple(args.spacing),
-        interpolation=args.interpolation
-    )
+
+    if args.seg:
+        resample_seg(
+            input_path=args.input,
+            output_path=args.output,
+            target_spacing=tuple(args.spacing),
+            sigma=args.sigma,
+            order=args.order,
+        )
+    else:
+        resample(
+            input_path=args.input,
+            output_path=args.output,
+            target_spacing=tuple(args.spacing),
+            interpolation=args.interpolation,
+        )
 
 def crop_cli():
     parser = argparse.ArgumentParser(description='Crop Or Pad NIfTI image to specified shape')
