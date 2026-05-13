@@ -32,6 +32,7 @@ setup(
         "opencv-python",
         "numpy",
         "patchify>=0.1.0",
+        "scikit-image",
     ],
     entry_points={
         'console_scripts': [
