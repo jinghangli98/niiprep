@@ -47,8 +47,29 @@ def mip(input_path: str, output_path: str, axis: int = 2,
     nib.save(mip_img, output_path)
 
 
+def _get_rotate_backend(use_gpu=True):
+    """Return ``(xp, rotate, asnumpy, on_gpu)`` for the available backend.
+
+    Falls back to NumPy/SciPy on the CPU when CuPy or a working CUDA
+    device is unavailable, so the same code path runs everywhere.
+    """
+    if use_gpu:
+        try:
+            import cupy as cp
+            from cupyx.scipy.ndimage import rotate as cp_rotate
+            if cp.cuda.runtime.getDeviceCount() > 0:
+                return cp, cp_rotate, cp.asnumpy, True
+        except Exception:
+            pass
+    from scipy.ndimage import rotate as np_rotate
+    return np, np_rotate, (lambda a: a), False
+
+
 def _slab_project(vol, axis, slab):
-    """Max-project ``vol`` along ``axis``, optionally over a centered slab."""
+    """Max-project ``vol`` along ``axis``, optionally over a centered slab.
+
+    Works on both NumPy and CuPy arrays (uses the array's own ``max``).
+    """
     n = vol.shape[axis]
     if slab is not None and slab < n:
         half = slab // 2
@@ -57,7 +78,7 @@ def _slab_project(vol, axis, slab):
         sl = [slice(None)] * vol.ndim
         sl[axis] = slice(lo, hi)
         vol = vol[tuple(sl)]
-    return np.max(vol, axis=axis)
+    return vol.max(axis=axis)
 
 
 def _pad_to(frame, height, width):
@@ -69,16 +90,18 @@ def _pad_to(frame, height, width):
                   ((top, height - h - top), (left, width - w - left)))
 
 
-def _rotating_mip_frames(data, axis, spin_axis, frames, slab):
+def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
     """Return uint8 2D frames of a MIP rotated 360 deg around spin_axis.
 
     Frames are projected over an optional centered slab and padded to a
-    common canvas so the rotated content is never clipped.
+    common canvas so the rotated content is never clipped. Uses CuPy on
+    the GPU when available, otherwise SciPy on the CPU.
     """
-    from scipy.ndimage import rotate
-
     if axis == spin_axis:
         raise ValueError("projection --axis and --spin-axis must differ")
+
+    xp, rotate, asnumpy, on_gpu = _get_rotate_backend(use_gpu)
+    print(f"Rotating MIP backend: {'GPU (CuPy)' if on_gpu else 'CPU (SciPy)'}")
 
     # The rotation plane is spanned by the two axes that are not the
     # spin axis; the projection axis is one of them so the view changes
@@ -88,24 +111,34 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab):
     vmin, vmax = float(data.min()), float(data.max())
     angles = np.linspace(0.0, 360.0, frames, endpoint=True)
 
+    # Move the volume to the device once; only small 2D frames are
+    # copied back per angle, keeping host<->device transfer minimal.
+    vol = xp.asarray(data) if on_gpu else data
+
+    try:
+        from tqdm import tqdm
+        angle_iter = tqdm(angles, desc="Rotating MIP", unit="frame")
+    except ImportError:
+        angle_iter = angles
+
     raw = []
-    for angle in angles:
+    for angle in angle_iter:
         # reshape=True grows the volume to fit the rotated content so
         # nothing is clipped to the original bounding box.
         # cval=0 keeps the zero-fill below the data range so the
         # rotated background maps to black after clipping.
-        rot = rotate(data, angle, axes=plane, reshape=True, order=1,
-                     cval=0.0)
+        rot = rotate(vol, float(angle), axes=plane, reshape=True,
+                     order=1, cval=0.0)
         proj = _slab_project(rot, axis, slab)
         if vmax > vmin:
             proj = (proj - vmin) / (vmax - vmin) * 255.0
         else:
-            proj = np.zeros_like(proj)
+            proj = xp.zeros_like(proj)
         # Clip before the uint8 cast: the rotation zero-fill projects
         # below vmin, giving small negatives that would otherwise wrap
         # to 255 and show as white bars at the rotated silhouette.
-        proj = np.clip(proj, 0.0, 255.0)
-        raw.append(np.rot90(proj))
+        proj = xp.clip(proj, 0.0, 255.0)
+        raw.append(asnumpy(xp.rot90(proj)))
 
     max_h = max(f.shape[0] for f in raw)
     max_w = max(f.shape[1] for f in raw)
@@ -114,7 +147,8 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab):
 
 def rotating_mip(input_path: str, output_path: str, axis: int = 1,
                  spin_axis: int = 2, frames: int = 36, fps: int = 10,
-                 fmt: str = "gif", slab: int = None) -> None:
+                 fmt: str = "gif", slab: int = None,
+                 use_gpu: bool = True) -> None:
     """
     Render a rotating Maximum Intensity Projection cine.
 
@@ -133,11 +167,14 @@ def rotating_mip(input_path: str, output_path: str, axis: int = 1,
         fmt: Output format, "gif" or "mp4".
         slab: Centered slab thickness in voxels to project through at
             each angle. If None, the full depth is projected.
+        use_gpu: Use the CuPy GPU backend when a CUDA device is
+            available; falls back to the CPU otherwise.
     """
     img = nib.load(input_path)
     data = img.get_fdata()
 
-    frame_list = _rotating_mip_frames(data, axis, spin_axis, frames, slab)
+    frame_list = _rotating_mip_frames(data, axis, spin_axis, frames, slab,
+                                      use_gpu=use_gpu)
 
     if fmt == "gif":
         import imageio

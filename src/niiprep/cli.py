@@ -282,6 +282,10 @@ def mip_cli():
     parser.add_argument('--fps', type=int, default=10,
                       help='(--gif/--mp4) Playback frames per second '
                            '(default: 10)')
+    parser.add_argument('--no-gpu', action='store_true', dest='no_gpu',
+                      help='(--gif/--mp4) Force the CPU backend even if a '
+                           'CUDA GPU is available (GPU is used by default '
+                           'when CuPy and a device are present)')
 
     args = parser.parse_args()
 
@@ -307,6 +311,7 @@ def mip_cli():
             fps=args.fps,
             fmt=fmt,
             slab=args.slab,
+            use_gpu=not args.no_gpu,
         )
     else:
         mip(

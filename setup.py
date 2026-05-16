@@ -33,7 +33,15 @@ setup(
         "numpy",
         "patchify>=0.1.0",
         "scikit-image",
+        "tqdm",
     ],
+    extras_require={
+        # Optional GPU acceleration for the rotating MIP cine.
+        # Install the CuPy wheel matching your CUDA toolkit, e.g.
+        #   pip install "niiprep[gpu]"
+        # or pick an explicit wheel like cupy-cuda12x if needed.
+        "gpu": ["cupy"],
+    },
     entry_points={
         'console_scripts': [
             'resample=niiprep.cli:resample_cli',
