@@ -15,6 +15,7 @@ from .mask import rotation_mask, otsu_mask, main as mask_main
 from .bias_correct_spm import spm_bias_correct, DEFAULT_SPM_PATH
 from .patchify_nii import patchify_nii, unpatchify_nii
 from .matlab_denoise import mdenoise
+from .mip import mip, rotating_mip
 
 
 def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
@@ -249,6 +250,71 @@ def denoise_cli():
     denoised = ants.new_image_like(denoised, arr)
     ants.image_write(denoised, args.output)
 
+
+def mip_cli():
+    parser = argparse.ArgumentParser(
+        description='Maximum Intensity Projection (MIP) of a NIfTI image '
+                    '(e.g. TOF MRA vascular rendering)')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Path to save MIP NIfTI file')
+    parser.add_argument('-a', '--axis', type=int, default=2, choices=[0, 1, 2],
+                      help='Axis to project along '
+                           '(0: sagittal, 1: coronal, 2: axial (default))')
+    parser.add_argument('--slab', type=int, default=None,
+                      help='Sliding-slab thickness in voxels. If omitted, a '
+                           'single full projection is produced; if set, a '
+                           'same-shape volume of slab MIPs is produced.')
+    parser.add_argument('--gif', action='store_true',
+                      help='Generate a rotating MIP cine as an animated GIF '
+                           'instead of a NIfTI file')
+    parser.add_argument('--mp4', action='store_true',
+                      help='Generate a rotating MIP cine as an MP4 video '
+                           'instead of a NIfTI file')
+    parser.add_argument('--spin-axis', type=int, default=2, choices=[0, 1, 2],
+                      dest='spin_axis',
+                      help='(--gif/--mp4) Axis the volume rotates around '
+                           '(default: 2, cranio-caudal for TOF head data)')
+    parser.add_argument('--frames', type=int, default=36,
+                      help='(--gif/--mp4) Number of frames over a full '
+                           '360 deg rotation (default: 36)')
+    parser.add_argument('--fps', type=int, default=10,
+                      help='(--gif/--mp4) Playback frames per second '
+                           '(default: 10)')
+
+    args = parser.parse_args()
+
+    if args.gif and args.mp4:
+        raise SystemExit("error: --gif and --mp4 are mutually exclusive")
+
+    if args.gif or args.mp4:
+        fmt = 'gif' if args.gif else 'mp4'
+        ext = '.' + fmt
+        output_path = args.output
+        for nii_ext in ('.nii.gz', '.nii'):
+            if output_path.endswith(nii_ext):
+                output_path = output_path[:-len(nii_ext)]
+                break
+        if not output_path.endswith(ext):
+            output_path += ext
+        rotating_mip(
+            input_path=args.input,
+            output_path=output_path,
+            axis=args.axis,
+            spin_axis=args.spin_axis,
+            frames=args.frames,
+            fps=args.fps,
+            fmt=fmt,
+            slab=args.slab,
+        )
+    else:
+        mip(
+            input_path=args.input,
+            output_path=args.output,
+            axis=args.axis,
+            slab=args.slab,
+        )
 
 def mdenoise_cli():
     parser = argparse.ArgumentParser(description='Denoise a NIfTI image using the MATLAB denoising routine')
