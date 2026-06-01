@@ -12,7 +12,7 @@ setup(
     package_data={
         'niiprep': [
             '*.m',
-            'denoise/**/*',
+            'denoise_lavi/**/*',
         ],
     },
     include_package_data=True,
@@ -30,7 +30,7 @@ setup(
         "antspyx>=0.3.0",
         "nibabel>=3.0.0",
         "opencv-python",
-        "numpy",
+        "numpy>=2.0.0",
         "patchify>=0.1.0",
         "scikit-image",
         "tqdm",

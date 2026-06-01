@@ -322,15 +322,29 @@ def mip_cli():
         )
 
 def mdenoise_cli():
-    parser = argparse.ArgumentParser(description='Denoise a NIfTI image using the MATLAB denoising routine')
+    parser = argparse.ArgumentParser(
+        description='Denoise a NIfTI image using the LAVI VST + BM4D MATLAB pipeline')
     parser.add_argument('-i', '--input', required=True,
                       help='Path to input NIfTI file')
     parser.add_argument('-o', '--output', required=True,
                       help='Path to save denoised NIfTI file')
 
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--lc', dest='profile', action='store_const', const='lc',
+                       help='BM4D less aggressive / fastest')
+    group.add_argument('--np', dest='profile', action='store_const', const='np',
+                       help='BM4D normal aggressiveness (default)')
+    group.add_argument('--mp', dest='profile', action='store_const', const='mp',
+                       help='BM4D more aggressive / slowest')
+    parser.set_defaults(profile='np')
+
+    parser.add_argument('-c', '--cores', type=int, default=None,
+                      help='Number of CPU cores/threads to use '
+                           '(default: all available cores)')
+
     args = parser.parse_args()
 
-    mdenoise(args.input, args.output)
+    mdenoise(args.input, args.output, profile=args.profile, cores=args.cores)
 
 def biascorrect_cli():
     parser = argparse.ArgumentParser(description='N4 bias field correction using ANTs')
