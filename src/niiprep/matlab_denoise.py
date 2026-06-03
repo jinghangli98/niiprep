@@ -1,9 +1,10 @@
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
 import nibabel as nib
+
+from .matlab_runner import run_matlab
 
 
 def _lavi_assets_dir() -> Path:
@@ -12,30 +13,6 @@ def _lavi_assets_dir() -> Path:
 
 def _matlab_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
-
-
-def _run_matlab(matlab_cmd: str, cores: int = None) -> None:
-    """Run a MATLAB command in batch mode with a sanitized LD_LIBRARY_PATH."""
-    env = os.environ.copy()
-    # Strip any user-local GCC lib paths that ship an older libstdc++ than
-    # MATLAB R2025a requires (needs GLIBCXX_3.4.29+, CXXABI_1.3.13+). These
-    # commonly leak in via LD_LIBRARY_PATH and/or an LD_PRELOAD of
-    # libstdc++.so.6 (e.g. ~/opt/gcc-*/lib64) set in the user's shell rc.
-    def _scrub(value: str) -> str:
-        return ":".join(p for p in value.split(":") if "opt/gcc" not in p and p)
-
-    env["LD_LIBRARY_PATH"] = _scrub(env.get("LD_LIBRARY_PATH", ""))
-    env["LD_PRELOAD"] = _scrub(env.get("LD_PRELOAD", ""))
-
-    # Cap the OpenMP-threaded BM4D mex at the requested core count.
-    if cores is not None:
-        env["OMP_NUM_THREADS"] = str(cores)
-
-    subprocess.run(
-        ["matlab", "-nodisplay", "-nosplash", "-r", matlab_cmd],
-        check=True,
-        env=env,
-    )
 
 
 def mdenoise(input_path: str, output_path: str, profile: str = "np",
@@ -99,7 +76,7 @@ def mdenoise(input_path: str, output_path: str, profile: str = "np",
             "exit"
         )
 
-        _run_matlab(matlab_cmd, cores=cores)
+        run_matlab(matlab_cmd, cores=cores)
 
         # niftiwrite appends the extension; resolve whichever was produced.
         produced = matlab_output

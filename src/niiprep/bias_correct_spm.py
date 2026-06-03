@@ -1,9 +1,9 @@
 import os
 import shutil
-import subprocess
 import tempfile
 import nibabel as nib
 from .round import round_nifti
+from .matlab_runner import run_matlab
 
 DEFAULT_SPM_PATH = '/ihome/tibrahim/jil202/spm12'
 
@@ -47,10 +47,7 @@ def spm_bias_correct(
             f"exit"
         )
 
-        subprocess.run(
-            ['matlab', '-nodisplay', '-nosplash', '-r', matlab_cmd],
-            check=True,
-        )
+        run_matlab(matlab_cmd)
 
         spm_output = os.path.join(tmpdir, f'm{basename}.nii')
         if not os.path.exists(spm_output):
