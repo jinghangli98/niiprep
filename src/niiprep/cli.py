@@ -163,15 +163,25 @@ def denoise_mp2rage():
     parser = argparse.ArgumentParser(description='MP2RAGE robust combination processing')
     
     parser.add_argument('--uni', type=str, required=True,
-                        help='Path to UNI image (.nii or .nii.gz)')
+                        help='Path to UNI image (.nii/.nii.gz file or DICOM-series directory)')
     parser.add_argument('--inv1', type=str, required=True,
-                        help='Path to INV1 image (.nii or .nii.gz)')
+                        help='Path to INV1 image (.nii/.nii.gz file or DICOM-series directory)')
     parser.add_argument('--inv2', type=str, required=True,
-                        help='Path to INV2 image (.nii or .nii.gz)')
+                        help='Path to INV2 image (.nii/.nii.gz file or DICOM-series directory)')
     parser.add_argument('--output', '-o', type=str, required=True,
-                        help='Output path for processed image')
-    parser.add_argument('--regularization', '-r', type=float, default=None,
-                        help='Noise regularization factor (default: None for interactive mode)')
+                        help='Output path (.nii/.nii.gz file, or a directory for DICOM output)')
+
+    def parse_reg(value):
+        if value.lower() == 'auto':
+            return 'auto'
+        try:
+            return float(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid value for regularization: {value}")
+
+    parser.add_argument('--regularization', '-r', type=parse_reg, default='auto',
+                        help="Noise regularization factor; a number, or 'auto' to "
+                             "auto-detect (default: 'auto')")
 
     args = parser.parse_args()
 

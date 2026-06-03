@@ -69,9 +69,16 @@ def mdenoise(input_path: str, output_path: str, profile: str = "np",
             f"addpath(genpath({_matlab_string(str(assets_dir))})); "
             f"{thread_prefix}"
             f"info = niftiinfo({_matlab_string(matlab_input)}); "
-            f"I_noisy = double(niftiread({_matlab_string(matlab_input)})); "
+            f"I_orig = double(niftiread({_matlab_string(matlab_input)})); "
+            # Normalize intensities to 0-255, then scale by 100 before denoising.
+            "I_min = min(I_orig(:)); I_max = max(I_orig(:)); "
+            "I_range = I_max - I_min; if I_range == 0, I_range = 1; end; "
+            "I_scale = 255 * 100 / I_range; "
+            "I_noisy = (I_orig - I_min) * I_scale; "
             "Sigma_map = rice_sigma_mapEST(I_noisy); "
             f"I_denoised = {denoise_call}; "
+            # Invert the scaling so the output is back in the original intensity range.
+            "I_denoised = I_denoised / I_scale + I_min; "
             f"niftiwrite(cast(I_denoised, info.Datatype), {_matlab_string(matlab_output)}, info); "
             "exit"
         )
