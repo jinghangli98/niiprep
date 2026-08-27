@@ -351,10 +351,16 @@ def mdenoise_cli():
     parser.add_argument('-c', '--cores', type=int, default=None,
                       help='Number of CPU cores/threads to use '
                            '(default: all available cores)')
+    parser.add_argument('--scale', dest='scale_back', action='store_true',
+                      help='Rescale the denoised output back to the input '
+                           "image's intensity range and datatype. By default "
+                           "the output is left in the denoiser's ~0-25500 "
+                           'working range and saved as float.')
 
     args = parser.parse_args()
 
-    mdenoise(args.input, args.output, profile=args.profile, cores=args.cores)
+    mdenoise(args.input, args.output, profile=args.profile, cores=args.cores,
+             scale_back=args.scale_back)
 
 def biascorrect_cli():
     parser = argparse.ArgumentParser(description='N4 bias field correction using ANTs')
@@ -490,6 +496,8 @@ def mbiascorrect_cli():
                       help='Save SPM tissue segmentation masks (c1-c5) alongside output')
     parser.add_argument('--round', action='store_true',
                       help='Round output intensity values to nearest integer')
+    parser.add_argument('--norm', action='store_true',
+                      help='Min–max normalize intensities to 0–255 and round before saving')
 
     args = parser.parse_args()
 
@@ -502,6 +510,7 @@ def mbiascorrect_cli():
         include_c3=args.include_c3,
         save_masks=args.save_masks,
         round_output=args.round,
+        norm=args.norm,
     )
 
 

@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import nibabel as nib
+import numpy as np
 from .round import round_nifti
 from .matlab_runner import run_matlab
 
@@ -21,6 +22,7 @@ def spm_bias_correct(
     include_c3=False,
     save_masks=False,
     round_output=False,
+    norm=False,
 ):
     input_path = os.path.abspath(input_path)
     output_path = os.path.abspath(output_path)
@@ -54,6 +56,19 @@ def spm_bias_correct(
             raise RuntimeError(f"SPM output not found at expected path: {spm_output}")
 
         corrected_img = nib.load(spm_output)
+
+        # Min-max normalize intensities to 0-255 and round before saving.
+        if norm:
+            arr = corrected_img.get_fdata()
+            a_min, a_max = float(arr.min()), float(arr.max())
+            if a_max > a_min:
+                arr = (arr - a_min) / (a_max - a_min) * 255.0
+            else:
+                arr = np.zeros_like(arr)
+            arr = np.round(arr).astype(np.float32)
+            corrected_img = nib.Nifti1Image(arr, corrected_img.affine, corrected_img.header)
+            corrected_img.set_data_dtype(np.float32)
+
         nib.save(corrected_img, output_path)
         print(f"Bias-corrected image saved to: {output_path}")
         if round_output:
