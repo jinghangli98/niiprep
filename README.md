@@ -17,6 +17,7 @@ NiiPrep is a Python package that provides convenient command-line tools for comm
 - **Value Rounding**: Round pixel values in NIfTI images
 - **MP2RAGE Denoising**: Robust combination processing for MP2RAGE images
 - **3D Patch Parcellation**: Split NIfTI volumes into 3D patches and reconstruct, with automatic background filtering
+- **Maximum Intensity Projection**: Full or sliding-slab MIPs and rotating MIP cines (GIF/MP4) for TOF MRA vascular rendering, with optional GPU acceleration
 
 ## Installation
 
@@ -249,6 +250,52 @@ unpatchifynii -i ./patches -o reconstructed.nii.gz
 - `-i, --input`: Directory containing patches and `patches_meta.json`
 - `-o, --output`: Path to save reconstructed NIfTI file
 
+### 14. `mip` - Maximum Intensity Projection
+
+Compute a Maximum Intensity Projection (MIP) of a NIfTI volume, e.g. to render the vascular tree from a time-of-flight (TOF) MRA. Three modes are available:
+
+- **Full projection** (default): collapse the whole volume along one axis into a single 2D projection (saved as a NIfTI with a singleton dimension).
+- **Sliding-slab MIP** (`--slab`): for every slice, project through a centered slab of the given thickness. The output has the same shape as the input, so it can be scrolled like a regular volume.
+- **Rotating cine** (`--gif` / `--mp4`): spin the volume 360° around `--spin-axis`, project along `--axis` at each angle, and write an animated GIF or MP4. Uses the GPU (CuPy) when available and falls back to the CPU otherwise.
+
+```bash
+# Axial MIP of a TOF angiogram (default axis 2)
+mip -i tof.nii.gz -o tof_mip.nii.gz
+
+# Sagittal / coronal projection
+mip -i tof.nii.gz -o tof_mip_sag.nii.gz -a 0
+mip -i tof.nii.gz -o tof_mip_cor.nii.gz -a 1
+
+# Sliding-slab MIP, 20-voxel slab, same shape as the input
+mip -i tof.nii.gz -o tof_slabmip.nii.gz --slab 20
+
+# Rotating MIP cine as GIF (36 frames, 10 fps, spins around the cranio-caudal axis)
+mip -i tof.nii.gz -o tof_spin.gif --gif -a 1
+
+# Smoother MP4 cine, forced onto the CPU
+mip -i tof.nii.gz -o tof_spin.mp4 --mp4 -a 1 --frames 72 --fps 15 --no-gpu
+```
+
+**Parameters:**
+- `-i, --input`: Path to input NIfTI file
+- `-o, --output`: Path to save the output. A NIfTI file by default; with `--gif`/`--mp4` a `.nii`/`.nii.gz` suffix is replaced by the cine extension automatically
+- `-a, --axis`: Axis to project along: `0` sagittal, `1` coronal, `2` axial (default: `2`). For a rotating cine, `-a 1` (coronal) with the default `--spin-axis 2` gives the classic spinning head view
+- `--slab`: Slab thickness in voxels. Without a cine flag this produces a same-shape sliding-slab MIP volume; with `--gif`/`--mp4` each frame projects through a centered slab of this thickness (optional)
+- `--gif`: Write a rotating MIP cine as an animated GIF instead of a NIfTI file
+- `--mp4`: Write a rotating MIP cine as an MP4 video instead of a NIfTI file (mutually exclusive with `--gif`)
+- `--spin-axis`: (`--gif`/`--mp4`) Axis the volume rotates around (default: `2`, cranio-caudal for TOF head data)
+- `--frames`: (`--gif`/`--mp4`) Number of frames over a full 360° rotation (default: `36`)
+- `--fps`: (`--gif`/`--mp4`) Playback frames per second (default: `10`)
+- `--no-gpu`: (`--gif`/`--mp4`) Force the CPU (SciPy) backend even if a CUDA GPU is available
+
+GPU acceleration for the rotating cine requires CuPy. Install it with the `gpu` extra or pick the wheel matching your CUDA toolkit:
+
+```bash
+pip install "niiprep[gpu]"
+# or, for example
+pip install cupy-cuda12x
+```
+
 ## Python API
 
 You can also use NiiPrep functions directly in Python:
@@ -256,6 +303,7 @@ You can also use NiiPrep functions directly in Python:
 ```python
 from niiprep import resample, register, nii_to_mp4, mdenoise
 from niiprep.patchify_nii import patchify_nii, unpatchify_nii
+from niiprep.mip import mip, rotating_mip
 
 # Resample an image
 resample(
@@ -301,6 +349,26 @@ patchify_nii(
 unpatchify_nii(
     input_dir='./patches',
     output_path='reconstructed.nii.gz',
+)
+
+# Axial MIP of a TOF angiogram (slab=None -> single full projection)
+mip(
+    input_path='tof.nii.gz',
+    output_path='tof_mip.nii.gz',
+    axis=2,
+    slab=None,
+)
+
+# Rotating MIP cine (coronal projection, spinning around the cranio-caudal axis)
+rotating_mip(
+    input_path='tof.nii.gz',
+    output_path='tof_spin.mp4',
+    axis=1,
+    spin_axis=2,
+    frames=72,
+    fps=15,
+    fmt='mp4',
+    use_gpu=True,     # falls back to CPU if CuPy / a CUDA device is missing
 )
 ```
 
@@ -356,6 +424,22 @@ denoiseMP2RAGE --uni MP2RAGE_UNI.nii.gz \
                -o MP2RAGE_denoised.nii.gz
 ```
 
+### TOF MRA Vascular Rendering
+
+```bash
+# 1. Denoise the TOF angiogram
+denoise -i tof.nii.gz -o tof_denoised.nii.gz
+
+# 2. Static axial MIP for a quick look
+mip -i tof_denoised.nii.gz -o tof_mip.nii.gz
+
+# 3. Sliding-slab MIP to scroll through the vasculature
+mip -i tof_denoised.nii.gz -o tof_slabmip.nii.gz --slab 20
+
+# 4. Rotating cine for presentation
+mip -i tof_denoised.nii.gz -o tof_spin.mp4 --mp4 -a 1 --frames 72 --fps 15
+```
+
 ### MATLAB Denoising
 
 ```bash
@@ -386,6 +470,9 @@ MIT License
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
+
+### Version 0.2.1
+- Added `mip`: full, sliding-slab, and rotating cine (GIF/MP4) Maximum Intensity Projections for TOF MRA, with optional CuPy GPU acceleration (`pip install "niiprep[gpu]"`)
 
 ### Version 0.2.0
 - Added `patchifynii`: split 3D NIfTI volumes into patches with automatic zero-padding, normalization, and Otsu-based background filtering
