@@ -16,6 +16,7 @@ from .bias_correct_spm import spm_bias_correct, DEFAULT_SPM_PATH
 from .patchify_nii import patchify_nii, unpatchify_nii
 from .matlab_denoise import mdenoise
 from .mip import mip, rotating_mip
+from .montage import montage
 
 
 def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
@@ -330,6 +331,41 @@ def mip_cli():
             axis=args.axis,
             slab=args.slab,
         )
+
+def montage_cli():
+    parser = argparse.ArgumentParser(
+        description='Tile several MIP cines (GIF/MP4) into one synced '
+                    'montage cine')
+    parser.add_argument('-i', '--input', required=True, nargs='+',
+                      help='Input .gif / .mp4 cine files, tiled row-major '
+                           'in the order given')
+    parser.add_argument('-o', '--output', required=True,
+                      help='Output path; format follows the extension '
+                           '(.gif or .mp4)')
+    parser.add_argument('--cols', type=int, default=None,
+                      help='Number of grid columns '
+                           '(default: ceil(sqrt(number of inputs)))')
+    parser.add_argument('--labels', nargs='+', default=None,
+                      help='One text label per input, drawn in the '
+                           'top-left corner of its tile')
+    parser.add_argument('--fps', type=float, default=None,
+                      help='Playback frames per second (default: rate of '
+                           'the first input, or 10 if unknown)')
+
+    args = parser.parse_args()
+
+    if args.labels is not None and len(args.labels) != len(args.input):
+        raise SystemExit(
+            f"error: --labels expects {len(args.input)} values "
+            f"(one per input), got {len(args.labels)}")
+
+    montage(
+        input_paths=args.input,
+        output_path=args.output,
+        cols=args.cols,
+        labels=args.labels,
+        fps=args.fps,
+    )
 
 def mdenoise_cli():
     parser = argparse.ArgumentParser(

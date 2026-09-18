@@ -54,6 +54,7 @@ setup(
             'denoise=niiprep.cli:denoise_cli',
             'mdenoise=niiprep.cli:mdenoise_cli',
             'mip=niiprep.cli:mip_cli',
+            'mipmontage=niiprep.cli:montage_cli',
             'biascorrect=niiprep.cli:biascorrect_cli',
             'genmask=niiprep.cli:mask_cli',
             'mbiascorrect=niiprep.cli:mbiascorrect_cli',

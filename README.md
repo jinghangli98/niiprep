@@ -18,6 +18,7 @@ NiiPrep is a Python package that provides convenient command-line tools for comm
 - **MP2RAGE Denoising**: Robust combination processing for MP2RAGE images
 - **3D Patch Parcellation**: Split NIfTI volumes into 3D patches and reconstruct, with automatic background filtering
 - **Maximum Intensity Projection**: Full or sliding-slab MIPs and rotating MIP cines (GIF/MP4) for TOF MRA vascular rendering, with optional GPU acceleration
+- **Cine Montage**: Tile multiple MIP cines into one synchronized grid for side-by-side comparison
 
 ## Installation
 
@@ -296,6 +297,26 @@ pip install "niiprep[gpu]"
 pip install cupy-cuda12x
 ```
 
+### 15. `mipmontage` - Synced Cine Montage
+
+Tile several rotating MIP cines (GIF or MP4, e.g. from `mip --gif`) into a single grid so multiple subjects or processing variants can be compared spinning in sync. Inputs are laid out row-major in the order given. Frames advance in lockstep: all inputs are truncated to the shortest frame count (a warning names any that were cut). Tiles of different sizes are zero-padded to the largest tile; no resampling is applied.
+
+```bash
+# 2x2 grid of four subjects, output GIF
+mipmontage -i sub01_spin.gif sub02_spin.gif sub03_spin.gif sub04_spin.gif -o montage.gif
+
+# Single row with labels, written as MP4 at 15 fps
+mipmontage -i raw_spin.gif denoised_spin.gif biascorr_spin.mp4 -o compare.mp4 \
+    --cols 3 --labels raw denoised biascorr --fps 15
+```
+
+**Parameters:**
+- `-i, --input`: One or more input `.gif` / `.mp4` cine files
+- `-o, --output`: Output path; the format follows the extension (`.gif` or `.mp4`)
+- `--cols`: Number of grid columns (default: ceil of the square root of the number of inputs, i.e. a near-square grid)
+- `--labels`: One text label per input, drawn in the top-left corner of its tile (optional)
+- `--fps`: Playback frames per second (default: the first input's rate, or 10 if it cannot be read)
+
 ## Python API
 
 You can also use NiiPrep functions directly in Python:
@@ -304,6 +325,7 @@ You can also use NiiPrep functions directly in Python:
 from niiprep import resample, register, nii_to_mp4, mdenoise
 from niiprep.patchify_nii import patchify_nii, unpatchify_nii
 from niiprep.mip import mip, rotating_mip
+from niiprep.montage import montage
 
 # Resample an image
 resample(
@@ -369,6 +391,14 @@ rotating_mip(
     fps=15,
     fmt='mp4',
     use_gpu=True,     # falls back to CPU if CuPy / a CUDA device is missing
+)
+
+# Tile several cines into one synced grid
+montage(
+    input_paths=['sub01_spin.gif', 'sub02_spin.gif', 'sub03_spin.gif'],
+    output_path='montage.gif',
+    cols=3,
+    labels=['sub01', 'sub02', 'sub03'],
 )
 ```
 
@@ -438,6 +468,11 @@ mip -i tof_denoised.nii.gz -o tof_slabmip.nii.gz --slab 20
 
 # 4. Rotating cine for presentation
 mip -i tof_denoised.nii.gz -o tof_spin.mp4 --mp4 -a 1 --frames 72 --fps 15
+
+# 5. Compare raw vs denoised side by side, spinning in sync
+mip -i tof.nii.gz -o tof_raw_spin.gif --gif -a 1 --frames 72
+mip -i tof_denoised.nii.gz -o tof_den_spin.gif --gif -a 1 --frames 72
+mipmontage -i tof_raw_spin.gif tof_den_spin.gif -o tof_compare.gif --labels raw denoised
 ```
 
 ### MATLAB Denoising
@@ -473,6 +508,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ### Version 0.2.1
 - Added `mip`: full, sliding-slab, and rotating cine (GIF/MP4) Maximum Intensity Projections for TOF MRA, with optional CuPy GPU acceleration (`pip install "niiprep[gpu]"`)
+- Added `mipmontage`: tile multiple MIP cines into one synchronized grid (GIF/MP4) with optional per-tile labels
 
 ### Version 0.2.0
 - Added `patchifynii`: split 3D NIfTI volumes into patches with automatic zero-padding, normalization, and Otsu-based background filtering
