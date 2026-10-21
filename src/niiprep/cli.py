@@ -17,6 +17,7 @@ from .patchify_nii import patchify_nii, unpatchify_nii
 from .matlab_denoise import mdenoise
 from .mip import mip, rotating_mip
 from .montage import montage
+from .skullstrip import skullstrip
 
 
 def _compute_ants_mask(ants_image, use_rotation=True, rot_axes="z", n_angles=36, threshold=None,
@@ -350,6 +351,50 @@ def mip_cli():
             axis=args.axis,
             slab=args.slab,
         )
+
+def skullstrip_cli():
+    parser = argparse.ArgumentParser(
+        description='Skull-strip a brain MRI of any contrast or resolution '
+                    'with SynthStrip',
+        epilog='If you use SynthStrip, please cite: A Hoopes et al., '
+               'SynthStrip: Skull-Stripping for Any Brain Image, '
+               'NeuroImage 260 (2022), 119474.')
+    parser.add_argument('-i', '--input', required=True,
+                      help='Path to input NIfTI file')
+    parser.add_argument('-o', '--output',
+                      help='Path to save skull-stripped image')
+    parser.add_argument('-m', '--mask',
+                      help='Path to save binary brain mask')
+    parser.add_argument('-b', '--border', type=float, default=1.0,
+                      help='Mask border threshold in mm (default: 1)')
+    parser.add_argument('--fill', type=float, default=None,
+                      help='Background fill value '
+                           '(default: min(image.min, 0))')
+    parser.add_argument('--no-csf', action='store_true', dest='no_csf',
+                      help='Exclude CSF from the brain border (needs '
+                           'FreeSurfer\'s nocsf model via FREESURFER_HOME '
+                           'or --model)')
+    parser.add_argument('--model', default=None,
+                      help='Alternative SynthStrip weights '
+                           '(default: model bundled with niiprep)')
+    parser.add_argument('--no-gpu', action='store_true', dest='no_gpu',
+                      help='Force the CPU even if a CUDA GPU is available')
+
+    args = parser.parse_args()
+
+    if not args.output and not args.mask:
+        parser.error('provide at least one of -o/--output or -m/--mask')
+
+    skullstrip(
+        input_path=args.input,
+        output_path=args.output,
+        mask_path=args.mask,
+        border=args.border,
+        fill=args.fill,
+        model_path=args.model,
+        use_gpu=not args.no_gpu,
+        no_csf=args.no_csf,
+    )
 
 def montage_cli():
     parser = argparse.ArgumentParser(

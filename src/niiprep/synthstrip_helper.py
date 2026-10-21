@@ -6,7 +6,9 @@ import argparse
 import torch
 import torch.nn as nn
 import numpy as np
-import surfa as sf
+
+# Weights shipped with niiprep (standard model; --no-csf still needs FreeSurfer)
+BUNDLED_MODEL = os.path.join(os.path.dirname(__file__), 'models', 'synthstrip.1.pt')
 
 # Define model architecture (same as original)
 class StripModel(nn.Module):
@@ -222,6 +224,8 @@ class SynthStripHelper:
         # Load weights
         if model_path is not None:
             modelfile = model_path
+        elif not no_csf and os.path.isfile(BUNDLED_MODEL):
+            modelfile = BUNDLED_MODEL
         else:
             version = '1'
             fshome = os.environ.get('FREESURFER_HOME')
@@ -391,6 +395,8 @@ def strip(data, border=1, fill_value=0, model_path=None, device='auto', no_csf=F
 
 # Original command-line interface
 if __name__ == "__main__":
+    import surfa as sf
+
     ref = '''
     If you use SynthStrip in your analysis, please cite:
     ----------------------------------------------------
