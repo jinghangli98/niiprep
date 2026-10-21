@@ -81,15 +81,6 @@ def _slab_project(vol, axis, slab):
     return vol.max(axis=axis)
 
 
-def _pad_to(frame, height, width):
-    """Center-pad a 2D frame to (height, width) with zeros."""
-    h, w = frame.shape
-    top = (height - h) // 2
-    left = (width - w) // 2
-    return np.pad(frame,
-                  ((top, height - h - top), (left, width - w - left)))
-
-
 def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
     """Return uint8 2D frames of a MIP rotated 360 deg around spin_axis.
 
@@ -111,9 +102,24 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
     vmin, vmax = float(data.min()), float(data.max())
     angles = np.linspace(0.0, 360.0, frames, endpoint=True)
 
+    # Pad the rotation plane once to its diagonal so any angle fits
+    # without clipping, then rotate with reshape=False into a single
+    # reused buffer. A fixed output shape matters on the GPU: CuPy
+    # compiles and caches one kernel per output shape, so reshape=True
+    # (a new shape at nearly every angle) plus a fresh float64 volume
+    # per frame grows device memory with --frames until it runs out.
+    diag = int(np.ceil(np.hypot(data.shape[plane[0]],
+                                data.shape[plane[1]])))
+    pad = [(0, 0)] * 3
+    for a in plane:
+        extra = diag - data.shape[a]
+        pad[a] = (extra // 2, extra - extra // 2)
+    padded = np.pad(data.astype(np.float32), pad)
+
     # Move the volume to the device once; only small 2D frames are
     # copied back per angle, keeping host<->device transfer minimal.
-    vol = xp.asarray(data) if on_gpu else data
+    vol = xp.asarray(padded)
+    rot = xp.empty_like(vol)
 
     try:
         from tqdm import tqdm
@@ -123,12 +129,10 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
 
     raw = []
     for angle in angle_iter:
-        # reshape=True grows the volume to fit the rotated content so
-        # nothing is clipped to the original bounding box.
         # cval=0 keeps the zero-fill below the data range so the
         # rotated background maps to black after clipping.
-        rot = rotate(vol, float(angle), axes=plane, reshape=True,
-                     order=1, cval=0.0)
+        rotate(vol, float(angle), axes=plane, reshape=False,
+               output=rot, order=1, cval=0.0)
         proj = _slab_project(rot, axis, slab)
         if vmax > vmin:
             proj = (proj - vmin) / (vmax - vmin) * 255.0
@@ -138,11 +142,13 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
         # below vmin, giving small negatives that would otherwise wrap
         # to 255 and show as white bars at the rotated silhouette.
         proj = xp.clip(proj, 0.0, 255.0)
-        raw.append(asnumpy(xp.rot90(proj)))
+        raw.append(asnumpy(xp.rot90(proj)).astype(np.uint8))
 
-    max_h = max(f.shape[0] for f in raw)
-    max_w = max(f.shape[1] for f in raw)
-    return [_pad_to(f, max_h, max_w).astype(np.uint8) for f in raw]
+    if on_gpu:
+        del vol, rot, proj
+        xp.get_default_memory_pool().free_all_blocks()
+
+    return raw
 
 
 def rotating_mip(input_path: str, output_path: str, axis: int = 1,
