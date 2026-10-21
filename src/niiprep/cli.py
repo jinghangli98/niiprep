@@ -5,7 +5,7 @@ import numpy as np
 import tempfile
 import os
 from .resample import resample, resample_seg
-from .registration import register
+from .registration import register, register_seg
 from .nii2mp4 import nii_to_mp4
 from .round import round_nifti
 from .denoise_mp2rage import robust_combination
@@ -107,20 +107,39 @@ def register_cli():
                       default='syn',
                       help='Registration type (default: syn)')
     parser.add_argument('--interpolation', default='linear',
-                      help='Interpolation type (default: linear)')
+                      help='Interpolation type for scalar images (default: linear). '
+                           'Ignored when --seg is set.')
     parser.add_argument('--norm', action='store_true',
-                      help='Min–max normalize intensities to 0–255 and round before saving')
-    
+                      help='Min–max normalize intensities to 0–255 and round before saving. '
+                           'Ignored when --seg is set.')
+    parser.add_argument('--seg', action='store_true',
+                      help='Treat the moving image as a discrete-label segmentation. '
+                           'Uses per-label one-hot + smoothing + linear-warp + argmax '
+                           'to produce anti-aliased boundaries without inventing '
+                           'fractional labels.')
+    parser.add_argument('--sigma', type=float, default=0.7,
+                      help='Gaussian sigma in moving voxels for --seg smoothing '
+                           '(default: 0.7; 0 disables, larger = smoother).')
+
     args = parser.parse_args()
-    
-    register(
-        fixed_path=args.fixed,
-        moving_path=args.moving,
-        output_path=args.output,
-        reg_type=args.type,
-        interpolation=args.interpolation,
-        norm=args.norm,
-    ) 
+
+    if args.seg:
+        register_seg(
+            fixed_path=args.fixed,
+            moving_path=args.moving,
+            output_path=args.output,
+            reg_type=args.type,
+            sigma=args.sigma,
+        )
+    else:
+        register(
+            fixed_path=args.fixed,
+            moving_path=args.moving,
+            output_path=args.output,
+            reg_type=args.type,
+            interpolation=args.interpolation,
+            norm=args.norm,
+        )
 
 def nii_to_mp4_cli():
     parser = argparse.ArgumentParser(description='Convert NIfTI file to MP4 video')
