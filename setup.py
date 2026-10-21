@@ -31,7 +31,6 @@ setup(
         "nibabel>=3.0.0",
         "opencv-python",
         "numpy>=2.0.0",
-        "patchify>=0.1.0",
         "scikit-image",
         "tqdm",
     ],

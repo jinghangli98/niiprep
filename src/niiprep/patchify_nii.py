@@ -1,23 +1,57 @@
 import math
 import os
-import sys
 import json
 import numpy as np
 import nibabel as nib
 from numpy.lib.stride_tricks import sliding_window_view
 from .autocrop import _otsu_threshold
 
-# Remove any sys.path entries that shadow patchify with a bare directory
-# (namespace package), keeping only entries that contain patchify/__init__.py.
-sys.path = [
-    p for p in sys.path
-    if not (p and os.path.isdir(os.path.join(p, "patchify"))
-            and not os.path.isfile(os.path.join(p, "patchify", "__init__.py")))
-]
-if "patchify" in sys.modules and sys.modules["patchify"].__file__ is None:
-    del sys.modules["patchify"]
 
-from patchify import unpatchify
+def unpatchify(patches: np.ndarray, imsize: tuple) -> np.ndarray:
+    """Merge a (n0, n1, n2, p0, p1, p2) grid of patches into a 3D volume.
+
+    Port of ``patchify.unpatchify`` (3D case), vendored because every
+    patchify release conflicts with numpy>=2 (0.2.3 pins numpy<2 and
+    0.2.2 pins scikit-image<0.18, which no longer builds). The patch
+    visiting order is kept identical so overlaps resolve the same way.
+    Unlike the original, the index always advances, so a step larger
+    than the patch size no longer loops forever.
+    """
+    if patches.ndim != 6:
+        raise ValueError(f"Expected a 6D patch grid, got shape {patches.shape}")
+
+    i_h, i_w, i_c = imsize
+    image = np.zeros(imsize, dtype=patches.dtype)
+    n_h, n_w, n_c, p_h, p_w, p_c = patches.shape
+
+    steps = []
+    for i_s, n, p in ((i_h, n_h, p_h), (i_w, n_w, p_w), (i_c, n_c, p_c)):
+        s = 0 if n <= 1 else (i_s - p) / (n - 1)
+        if int(s) != s:
+            raise ValueError(
+                f"Cannot reconstruct {n} x {p}px patches into size {i_s}: "
+                f"non-integer step {s}")
+        steps.append(int(s))
+    s_h, s_w, s_c = steps
+
+    i, j, k = 0, 0, 0
+    while True:
+        i_o, j_o, k_o = i * s_h, j * s_w, k * s_c
+        image[i_o:i_o + p_h, j_o:j_o + p_w, k_o:k_o + p_c] = patches[i, j, k]
+
+        if k < n_c - 1:
+            k = min(max(k + 1, (k_o + p_c) // s_c), n_c - 1)
+        elif j < n_w - 1:
+            j = min(max(j + 1, (j_o + p_w) // s_w), n_w - 1)
+            k = 0
+        elif i < n_h - 1:
+            i = min(max(i + 1, (i_o + p_h) // s_h), n_h - 1)
+            j = 0
+            k = 0
+        else:
+            break
+
+    return image
 
 
 def _compat_dim(dim: int, patch_size: int, step: int) -> int:
