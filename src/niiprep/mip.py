@@ -81,7 +81,8 @@ def _slab_project(vol, axis, slab):
     return vol.max(axis=axis)
 
 
-def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
+def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True,
+                         clip_percentile=100.0):
     """Return uint8 2D frames of a MIP rotated 360 deg around spin_axis.
 
     Frames are projected over an optional centered slab and padded to a
@@ -99,7 +100,11 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
     # as the volume spins.
     plane = tuple(a for a in (0, 1, 2) if a != spin_axis)
 
-    vmin, vmax = float(data.min()), float(data.max())
+    vmin = float(data.min())
+    # A percentile below 100 sets the white point under the brightest
+    # voxels, so a few hot outliers don't darken the whole cine.
+    vmax = (float(np.percentile(data, clip_percentile))
+            if clip_percentile < 100 else float(data.max()))
     angles = np.linspace(0.0, 360.0, frames, endpoint=True)
 
     # Pad the rotation plane once to its diagonal so any angle fits
@@ -154,7 +159,8 @@ def _rotating_mip_frames(data, axis, spin_axis, frames, slab, use_gpu=True):
 def rotating_mip(input_path: str, output_path: str, axis: int = 1,
                  spin_axis: int = 2, frames: int = 36, fps: int = 10,
                  fmt: str = "gif", slab: int = None,
-                 use_gpu: bool = True) -> None:
+                 use_gpu: bool = True,
+                 clip_percentile: float = 100.0) -> None:
     """
     Render a rotating Maximum Intensity Projection cine.
 
@@ -175,12 +181,18 @@ def rotating_mip(input_path: str, output_path: str, axis: int = 1,
             each angle. If None, the full depth is projected.
         use_gpu: Use the CuPy GPU backend when a CUDA device is
             available; falls back to the CPU otherwise.
+        clip_percentile: Upper percentile of the volume used as the white
+            point, e.g. 99.5 to keep bright outliers from darkening the
+            cine. 100 (default) uses the true max.
     """
+    if not 0 < clip_percentile <= 100:
+        raise ValueError(f"clip_percentile must be in (0, 100], got {clip_percentile}")
     img = nib.load(input_path)
     data = img.get_fdata()
 
     frame_list = _rotating_mip_frames(data, axis, spin_axis, frames, slab,
-                                      use_gpu=use_gpu)
+                                      use_gpu=use_gpu,
+                                      clip_percentile=clip_percentile)
 
     if fmt == "gif":
         import imageio

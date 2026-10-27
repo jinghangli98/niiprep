@@ -154,6 +154,20 @@ def nii_to_mp4_cli():
                       help='Frames per second (default: 10)')
     parser.add_argument('--no-normalize', action='store_false', dest='normalize',
                       help='Disable intensity normalization')
+    parser.add_argument('--norm', choices=['global', 'slice'], default='global',
+                      help='Normalization range: global (one range for the whole volume, '
+                           'no flicker; default) or slice (per-slice min/max)')
+    parser.add_argument('--clip', type=float, default=100.0,
+                      help='Upper percentile for global normalization, e.g. 99.5 to '
+                           'ignore bright outliers (default: 100 = true max)')
+    parser.add_argument('--size', type=int, default=1024,
+                      help='Longer frame edge in pixels; frames are upsampled with '
+                           'bicubic interpolation (default: 1024, 0 = native voxel grid)')
+    parser.add_argument('--crf', type=int, default=17,
+                      help='H.264 quality when ffmpeg is installed, lower is better '
+                           '(default: 17, visually lossless)')
+    parser.add_argument('--start', type=int, default=0,
+                      help='0-based index of the first slice to include (default: 0)')
     
     args = parser.parse_args()
     
@@ -167,8 +181,13 @@ def nii_to_mp4_cli():
         output_path=output_path,
         dimension=args.dimension,
         fps=args.fps,
-        normalize=args.normalize
-    ) 
+        normalize=args.normalize,
+        norm_mode=args.norm,
+        clip_percentile=args.clip,
+        size=args.size,
+        crf=args.crf,
+        start=args.start,
+    )
 
 def round_cli():
     parser = argparse.ArgumentParser(description='Round NIfTI image pixel values')
@@ -317,6 +336,10 @@ def mip_cli():
                       help='(--gif/--mp4) Force the CPU backend even if a '
                            'CUDA GPU is available (GPU is used by default '
                            'when CuPy and a device are present)')
+    parser.add_argument('--clip', type=float, default=100.0,
+                      help='(--gif/--mp4) Upper percentile used as the white '
+                           'point, e.g. 99.5 to keep bright outliers from '
+                           'darkening the cine (default: 100 = true max)')
 
     args = parser.parse_args()
 
@@ -343,6 +366,7 @@ def mip_cli():
             fmt=fmt,
             slab=args.slab,
             use_gpu=not args.no_gpu,
+            clip_percentile=args.clip,
         )
     else:
         mip(

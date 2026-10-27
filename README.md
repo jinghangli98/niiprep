@@ -88,6 +88,11 @@ nii2mp4 -i input.nii.gz -o output.mp4 -d 2 --fps 10
 - `-d, --dimension`: Dimension to slice along (0: sagittal, 1: coronal, 2: axial), default: 2
 - `--fps`: Frames per second, default: 10
 - `--no-normalize`: Disable intensity normalization
+- `--norm`: `global` (default) uses one intensity range for the whole volume so brightness stays consistent across slices; `slice` rescales each slice independently (old behavior, causes flicker)
+- `--clip`: Upper percentile for global normalization, e.g. `99.5` to ignore bright outliers, default: 100
+- `--size`: Longer frame edge in pixels. Frames are upsampled with bicubic interpolation and voxel spacing is honored, default: 1024 (`0` keeps the native voxel grid)
+- `--crf`: H.264 quality, lower is better, default: 17. Requires a working `ffmpeg` on PATH. Without it the tool falls back to OpenCV's H.264 encoder, which ignores this setting
+- `--start`: 0-based index of the first slice to include, default: 0
 
 ### 4. `crop` - Image Cropping/Padding
 
@@ -288,6 +293,7 @@ mip -i tof.nii.gz -o tof_spin.mp4 --mp4 -a 1 --frames 72 --fps 15 --no-gpu
 - `--frames`: (`--gif`/`--mp4`) Number of frames over a full 360° rotation (default: `36`)
 - `--fps`: (`--gif`/`--mp4`) Playback frames per second (default: `10`)
 - `--no-gpu`: (`--gif`/`--mp4`) Force the CPU (SciPy) backend even if a CUDA GPU is available
+- `--clip`: (`--gif`/`--mp4`) Upper percentile of the volume used as the white point, e.g. `99.5` to keep a few bright outliers from darkening the cine (default: `100`, the true max)
 
 GPU acceleration for the rotating cine requires CuPy. Install it with the `gpu` extra or pick the wheel matching your CUDA toolkit:
 
